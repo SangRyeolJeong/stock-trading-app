@@ -11,7 +11,9 @@ build/
 __pycache__/
 *.py[cod]
 .venv/
+.venv-win/
 backend/.venv/
+backend/.venv-win/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
