@@ -256,7 +256,11 @@ button, .card, .nav-item { -webkit-tap-highlight-color: transparent; }
 .order-button { width: 100%; padding: 12px; border-radius: 9px; color: white; font-size: 11px; font-weight: 600; }
 .order-button.buy { background: #e75d72; }
 .order-button.sell { background: #4f7cff; }
+.order-button:disabled { cursor: wait; filter: saturate(.6); opacity: .72; }
 .paper-note { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 9px 0 0; color: #5b687b; font-size: 7px; }
+.data-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 8px; }
+.data-status.error { border: 1px solid rgba(240,101,121,.18); color: #a9828b; background: rgba(240,101,121,.06); }
+.data-status button { padding: 4px 7px; border-radius: 5px; color: #d7a5ad; background: rgba(240,101,121,.1); font-size: 8px; }
 
 .content-page { max-width: 1400px; margin: 0 auto; padding-top: 36px; }
 .page-title { display: flex; align-items: center; gap: 15px; margin-bottom: 26px; }

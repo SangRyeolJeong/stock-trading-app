@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
 import { holdings, watchlist } from '../data/mock/market';
+import { marketApi } from '../services/marketApi';
+import { formatChangeRate, formatQuotePrice } from '../utils/format';
 
 function MiniLineChart() {
   return (
@@ -24,6 +27,23 @@ function MiniLineChart() {
 export function HomePage() {
   const [range, setRange] = useState('1개월');
   const navigate = useNavigate();
+  const quoteQueries = useQueries({
+    queries: watchlist.map((stock) => ({
+      queryKey: ['quote', stock.symbol],
+      queryFn: () => marketApi.getQuote(stock.symbol),
+      staleTime: 15_000,
+    })),
+  });
+  const liveWatchlist = watchlist.map((stock, index) => {
+    const quote = quoteQueries[index].data;
+    return quote ? {
+      ...stock,
+      name: quote.name,
+      price: formatQuotePrice(quote.price, quote.currency),
+      change: formatChangeRate(quote.change_rate),
+      positive: Number(quote.change_rate) >= 0,
+    } : stock;
+  });
 
   return (
     <PageContainer className="home-page">
@@ -69,7 +89,7 @@ export function HomePage() {
             <button className="add-button"><Icon name="plus" size={15} /> 추가</button>
           </div>
           <div className="watch-list">
-            {watchlist.map((stock) => (
+            {liveWatchlist.map((stock) => (
               <button key={stock.symbol} className="watch-row" onClick={() => navigate(`/market/${stock.symbol}`)}>
                 <span className="stock-logo" style={{ background: stock.color }}>{stock.symbol === '005930' ? 'S' : stock.symbol.slice(0, 1)}</span>
                 <span className="stock-name"><strong>{stock.symbol}</strong><small>{stock.name}</small></span>

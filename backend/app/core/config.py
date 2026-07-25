@@ -17,7 +17,11 @@ class Settings(BaseSettings):
     app_name: str = "MOA API"
     api_v1_prefix: str = "/api/v1"
     cors_origins: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:5173"]
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:5180",
+        ]
     )
 
     database_url: str | None = None

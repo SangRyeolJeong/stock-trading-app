@@ -1,17 +1,40 @@
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../app/toast';
 import ChartSection from '../components/ChartSection';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
 import { watchlist } from '../data/mock/market';
+import { useQuote } from '../hooks/useQuote';
+import { useQuoteStream } from '../hooks/useQuoteStream';
+import { paperApi } from '../services/paperApi';
+import { formatChangeRate, formatQuotePrice, formatUpdatedAt } from '../utils/format';
 
-function TradePanel({ symbol }: { symbol: string }) {
+function TradePanel({ symbol, price }: { symbol: string; price: number }) {
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [orderType, setOrderType] = useState('지정가');
   const [quantity, setQuantity] = useState(1);
   const { showToast } = useToast();
-  const price = 231.72;
+  const orderMutation = useMutation({
+    mutationFn: paperApi.createOrder,
+    onSuccess: (order) => {
+      showToast(`${order.symbol} ${order.quantity}주가 ${order.filled_price}에 모의 체결됐어요.`);
+    },
+    onError: (error: Error) => showToast(error.message),
+  });
+
+  const submitOrder = () => {
+    orderMutation.mutate({
+      symbol,
+      side,
+      order_type: orderType === '지정가' ? 'limit' : 'market',
+      quantity,
+      limit_price: orderType === '지정가' ? price.toFixed(2) : undefined,
+      account_id: 'demo-account',
+      idempotency_key: crypto.randomUUID(),
+    });
+  };
 
   return (
     <aside className="trade-panel card">
@@ -28,8 +51,8 @@ function TradePanel({ symbol }: { symbol: string }) {
       <div className="quantity-input"><button onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</button><strong>{quantity}주</strong><button onClick={() => setQuantity(quantity + 1)}>＋</button></div>
       <div className="quick-amounts">{['10%', '25%', '50%', '최대'].map((item) => <button key={item}>{item}</button>)}</div>
       <div className="order-summary"><div><span>예상 주문 금액</span><strong>${(price * quantity).toFixed(2)}</strong></div><div><span>예상 수수료</span><strong>$0.00</strong></div></div>
-      <button className={`order-button ${side}`} onClick={() => showToast(`${symbol} ${quantity}주 ${side === 'buy' ? '구매' : '판매'} 주문을 접수했어요.`)}>
-        {quantity}주 {side === 'buy' ? '구매하기' : '판매하기'}
+      <button className={`order-button ${side}`} onClick={submitOrder} disabled={orderMutation.isPending}>
+        {orderMutation.isPending ? '주문 접수 중…' : `${quantity}주 ${side === 'buy' ? '구매하기' : '판매하기'}`}
       </button>
       <p className="paper-note"><Icon name="shield" size={14} /> 모의투자 주문으로 실제 돈은 사용되지 않아요</p>
     </aside>
@@ -44,6 +67,13 @@ export function MarketPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const selectedStock = watchlist.find((stock) => stock.symbol === symbol) ?? watchlist[0];
+  const quoteQuery = useQuote(symbol);
+  const { tick, status: streamStatus } = useQuoteStream(symbol);
+  const quote = quoteQuery.data;
+  const currentPrice = tick?.price ?? Number(quote?.price ?? selectedStock.price.replace(/[$,원]/g, ''));
+  const currency = quote?.currency ?? (selectedStock.price.includes('$') ? 'USD' : 'KRW');
+  const displayPrice = formatQuotePrice(currentPrice, currency);
+  const displayChange = quote ? formatChangeRate(quote.change_rate) : selectedStock.change;
   const orderRows = [
     { price: '232.18', volume: '1,203', type: 'ask' }, { price: '232.04', volume: '842', type: 'ask' }, { price: '231.88', volume: '2,105', type: 'ask' },
     { price: '231.72', volume: '현재가', type: 'current' }, { price: '231.68', volume: '986', type: 'bid' }, { price: '231.51', volume: '1,547', type: 'bid' }, { price: '231.34', volume: '758', type: 'bid' },
@@ -69,9 +99,14 @@ export function MarketPage() {
 
         <section className="stock-detail card">
           <div className="stock-header">
-            <div className="stock-identity"><span className="stock-logo large">{symbol.slice(0, 1)}</span><div><span>{selectedStock.name} · NASDAQ</span><h1>{symbol} <button>☆</button></h1></div></div>
-            <div className="live-price"><strong>{selectedStock.price}</strong><span className={selectedStock.positive ? 'up' : 'down'}>{selectedStock.change}</span><small>데모 시세 · USD/KRW 1,381.50</small></div>
+            <div className="stock-identity"><span className="stock-logo large">{symbol.slice(0, 1)}</span><div><span>{quote?.name ?? selectedStock.name} · NASDAQ</span><h1>{symbol} <button>☆</button></h1></div></div>
+            <div className="live-price">
+              <strong>{quoteQuery.isLoading ? '불러오는 중' : displayPrice}</strong>
+              <span className={Number(quote?.change_rate ?? 1) >= 0 ? 'up' : 'down'}>{displayChange}</span>
+              <small>{streamStatus === 'connected' ? '실시간 연결' : streamStatus === 'reconnecting' ? '재연결 중' : '연결 중'} · {formatUpdatedAt(tick?.as_of ?? quote?.as_of)}</small>
+            </div>
           </div>
+          {quoteQuery.isError && <div className="data-status error"><span>시세 서버에 연결하지 못해 샘플 가격을 표시하고 있어요.</span><button onClick={() => quoteQuery.refetch()}>다시 시도</button></div>}
           <div className="detail-tabs">{['차트', '호가', '기업정보', '토론'].map((tab) => <button key={tab} onClick={() => setActiveTab(tab)} className={activeTab === tab ? 'active' : ''}>{tab}</button>)}</div>
           {activeTab === '차트' ? (
             <>
@@ -98,7 +133,7 @@ export function MarketPage() {
             <div className="empty-state"><span><Icon name={activeTab === '기업정보' ? 'chart' : 'book'} size={28} /></span><h3>{activeTab} 화면</h3><p>한투 API 및 데이터 소스 연결 후 실시간 정보가 표시됩니다.</p></div>
           )}
         </section>
-        <TradePanel symbol={symbol} />
+        <TradePanel symbol={symbol} price={currentPrice} />
       </div>
     </PageContainer>
   );

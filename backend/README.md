@@ -8,6 +8,8 @@ FastAPI 기반의 MOA 백엔드입니다. 비동기 시세 스트림, 모의 주
 
 ## 로컬 실행
 
+Linux/macOS:
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -15,6 +17,17 @@ pip install -r requirements-dev.txt
 cp .env.example .env
 pytest
 uvicorn app.main:app --reload --port 8000
+```
+
+현재 작업 환경처럼 WSL의 `python3-venv`가 없는 경우 Windows PowerShell에서
+Python 3.12 가상환경을 사용할 수 있습니다.
+
+```powershell
+cd D:\programming\backend
+py -3.12 -m venv .venv-win
+.\.venv-win\Scripts\python -m pip install -r requirements-dev.txt
+.\.venv-win\Scripts\python -m pytest
+.\.venv-win\Scripts\python -m uvicorn app.main:app --reload --port 8000
 ```
 
 실행 후 확인:
@@ -39,6 +52,6 @@ app/
 - 금융·세금 계산은 버전이 기록되는 규칙 엔진에서 결정적으로 수행합니다.
 - AI는 근거 검색과 설명을 담당하고 계산 결과를 임의로 만들지 않습니다.
 - 실제 시세, 모의 주문, 실전 증권 주문은 서로 다른 모듈로 분리합니다.
-- 주문 요청은 `idempotency_key`로 중복 처리를 막습니다.
+- 주문 요청은 `idempotency_key`를 필수로 받으며, 영속 원장 단계에서 유일 제약으로 중복 처리를 막습니다.
 - 금액과 수량은 `float`가 아니라 `Decimal`/PostgreSQL `NUMERIC`을 사용합니다.
 - 한투 API 키는 서버 환경변수에만 보관합니다.
