@@ -15,3 +15,12 @@ class Quote(BaseModel):
     market_open: bool
     delayed: bool = True
     as_of: datetime
+
+
+class ExchangeRate(BaseModel):
+    base_currency: Literal["KRW", "USD"]
+    quote_currency: Literal["KRW", "USD"]
+    rate: Decimal
+    source: Literal["mock", "kis"]
+    delayed: bool = True
+    as_of: datetime

@@ -7,6 +7,10 @@ FastAPI 기반의 MOA 백엔드입니다. 비동기 시세 스트림, 모의 주
 `MockMarketDataProvider`가 기본값입니다. 주문은 PostgreSQL 원장에 영속화되며,
 단일 데모 사용자의 원화·달러 초기 잔액이 첫 조회 또는 주문 시 생성됩니다.
 
+`MARKET_DATA_PROVIDER=kis`로 변경하면 한국투자증권 REST API에서 국내·해외
+현재가와 USD/KRW 환율을 조회합니다. 앱 키가 없을 때 서버가 실수로 KIS 모드로
+실행되지 않도록 시작 단계에서 설정 오류를 발생시킵니다.
+
 ## 로컬 실행
 
 Linux/macOS:
@@ -64,6 +68,19 @@ app/
 가격으로 즉시 체결하며, 수수료율은 `PAPER_FEE_RATE`로 설정합니다. 계좌 잠금부터
 현금·수량 검증, 주문, 체결, 현금 원장, 포지션과 스냅샷 기록까지 하나의 DB
 트랜잭션으로 처리합니다.
+
+## 시장 데이터 API
+
+- `GET /api/v1/markets/quotes/{symbol}`
+- `GET /api/v1/markets/exchange-rates/{base_currency}/{quote_currency}`
+- `WS /api/v1/markets/ws/quotes/{symbol}`
+
+KIS 모드의 국내 현재가는 `FHKST01010100`, 해외 현재가는
+`HHDFS00000300`을 사용합니다. USD/KRW는 해외 현재가 상세
+`HHDFS76200200` 응답의 당일 환율을 사용합니다. 현재 지원 통화는 KRW와
+USD이며, 해외 종목의 기본 거래소는 `KIS_DEFAULT_OVERSEAS_EXCHANGE`로
+설정합니다. REST 기반 WebSocket 브리지는 호출 제한을 고려해 5초마다
+갱신합니다.
 
 ## 설계 원칙
 

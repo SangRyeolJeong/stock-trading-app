@@ -8,6 +8,7 @@ import { PageContainer } from '../components/layout/PageContainer';
 import { watchlist } from '../data/mock/market';
 import { useQuote } from '../hooks/useQuote';
 import { useQuoteStream } from '../hooks/useQuoteStream';
+import { marketApi } from '../services/marketApi';
 import { paperApi } from '../services/paperApi';
 import { formatChangeRate, formatQuotePrice, formatUpdatedAt } from '../utils/format';
 
@@ -37,6 +38,12 @@ function TradePanel({
     queryKey: ['paper-accounts'],
     queryFn: paperApi.getAccounts,
   });
+  const exchangeRateQuery = useQuery({
+    queryKey: ['exchange-rate', 'USD', 'KRW'],
+    queryFn: () => marketApi.getExchangeRate('USD', 'KRW'),
+    enabled: currency === 'USD',
+  });
+  const usdKrwRate = Number(exchangeRateQuery.data?.rate ?? 0);
   const cashBalance = accountsQuery.data?.[0]?.cash_balances.find(
     (balance) => balance.currency === currency,
   );
@@ -76,7 +83,7 @@ function TradePanel({
       <label>주문 방식</label>
       <div className="segmented">{['지정가', '시장가'].map((item) => <button key={item} className={orderType === item ? 'active' : ''} onClick={() => setOrderType(item)}>{item}</button>)}</div>
       <label>주문 가격</label>
-      <div className="price-input"><button>−</button><div><strong>{formatCash(price, currency)}</strong><span>데모 시세 기준</span></div><button>＋</button></div>
+      <div className="price-input"><button>−</button><div><strong>{formatCash(price, currency)}</strong><span>{currency === 'USD' && usdKrwRate ? `약 ${formatCash(price * usdKrwRate, 'KRW')}` : '현재 시세 기준'}</span></div><button>＋</button></div>
       <label>수량</label>
       <div className="quantity-input"><button onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</button><strong>{quantity}주</strong><button onClick={() => setQuantity(quantity + 1)}>＋</button></div>
       <div className="quick-amounts">{['10%', '25%', '50%', '최대'].map((item) => <button key={item}>{item}</button>)}</div>

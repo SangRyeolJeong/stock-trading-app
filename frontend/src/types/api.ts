@@ -10,6 +10,15 @@ export interface Quote {
   as_of: string;
 }
 
+export interface ExchangeRate {
+  base_currency: 'KRW' | 'USD';
+  quote_currency: 'KRW' | 'USD';
+  rate: string;
+  source: 'mock' | 'kis';
+  delayed: boolean;
+  as_of: string;
+}
+
 export interface PaperOrderRequest {
   symbol: string;
   side: 'buy' | 'sell';

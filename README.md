@@ -9,6 +9,7 @@
 - TanStack Query 기반 시세 및 전략 서버 상태
 - FastAPI 데모 시세 REST API
 - QQQM 실시간 데모 WebSocket
+- 환경변수 전환형 한국투자증권 국내·해외 현재가와 USD/KRW 환율
 - PostgreSQL·SQLAlchemy 2.0 기반 모의투자 원장과 멱등 주문 API
 - 원화·달러 잔액, 즉시 체결, 포지션, 평균단가와 실현손익
 - DB 원장 기반 포트폴리오와 주문 내역 화면
@@ -43,6 +44,9 @@ npm run dev
 
 - 앱: `http://localhost:5173`
 - API 문서: `http://localhost:8000/docs`
+
+실제 한국투자증권 시세를 사용할 때는 `backend/.env`에
+`MARKET_DATA_PROVIDER=kis`, `KIS_APP_KEY`, `KIS_APP_SECRET`을 설정합니다.
 
 ## 검증
 

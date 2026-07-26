@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     kis_app_secret: str | None = None
     kis_account_number: str | None = None
     kis_account_product_code: str = "01"
+    kis_default_overseas_exchange: str = "NAS"
+    kis_fx_probe_symbol: str = "AAPL"
+    kis_fx_probe_exchange: str = "NAS"
 
     @field_validator("cors_origins", mode="before")
     @classmethod
