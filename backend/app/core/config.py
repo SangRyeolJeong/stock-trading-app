@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import lru_cache
 from typing import Annotated, Literal
 
@@ -24,9 +25,12 @@ class Settings(BaseSettings):
         ]
     )
 
-    database_url: str | None = None
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/moa"
     redis_url: str = "redis://localhost:6379/0"
     market_data_provider: Literal["mock", "kis"] = "mock"
+    paper_initial_krw: Decimal = Decimal("10000000")
+    paper_initial_usd: Decimal = Decimal("10000")
+    paper_fee_rate: Decimal = Decimal("0.001")
 
     kis_environment: Literal["paper", "production"] = "paper"
     kis_app_key: str | None = None

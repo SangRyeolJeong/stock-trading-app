@@ -9,7 +9,9 @@
 - TanStack Query 기반 시세 및 전략 서버 상태
 - FastAPI 데모 시세 REST API
 - QQQM 실시간 데모 WebSocket
-- 멱등성 키를 포함한 모의 주문 API
+- PostgreSQL·SQLAlchemy 2.0 기반 모의투자 원장과 멱등 주문 API
+- 원화·달러 잔액, 즉시 체결, 포지션, 평균단가와 실현손익
+- DB 원장 기반 포트폴리오와 주문 내역 화면
 - 규칙 기반 전략 추천 API
 - 한투 REST 클라이언트 경계
 - FastAPI 테스트 및 Ruff 검사
@@ -24,6 +26,7 @@ Windows PowerShell:
 cd D:\programming\backend
 py -3.12 -m venv .venv-win
 .\.venv-win\Scripts\python -m pip install -r requirements-dev.txt
+.\.venv-win\Scripts\python -m alembic upgrade head
 .\.venv-win\Scripts\python -m pytest
 .\.venv-win\Scripts\python -m uvicorn app.main:app --reload --port 8000
 ```

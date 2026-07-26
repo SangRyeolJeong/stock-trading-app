@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../app/toast';
 import ChartSection from '../components/ChartSection';
@@ -11,15 +11,42 @@ import { useQuoteStream } from '../hooks/useQuoteStream';
 import { paperApi } from '../services/paperApi';
 import { formatChangeRate, formatQuotePrice, formatUpdatedAt } from '../utils/format';
 
-function TradePanel({ symbol, price }: { symbol: string; price: number }) {
+function formatCash(value: number, currency: 'KRW' | 'USD') {
+  return new Intl.NumberFormat(currency === 'KRW' ? 'ko-KR' : 'en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: currency === 'KRW' ? 0 : 2,
+  }).format(value);
+}
+
+function TradePanel({
+  symbol,
+  price,
+  currency,
+}: {
+  symbol: string;
+  price: number;
+  currency: 'KRW' | 'USD';
+}) {
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [orderType, setOrderType] = useState('지정가');
   const [quantity, setQuantity] = useState(1);
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const accountsQuery = useQuery({
+    queryKey: ['paper-accounts'],
+    queryFn: paperApi.getAccounts,
+  });
+  const cashBalance = accountsQuery.data?.[0]?.cash_balances.find(
+    (balance) => balance.currency === currency,
+  );
   const orderMutation = useMutation({
     mutationFn: paperApi.createOrder,
     onSuccess: (order) => {
       showToast(`${order.symbol} ${order.quantity}주가 ${order.filled_price}에 모의 체결됐어요.`);
+      void queryClient.invalidateQueries({ queryKey: ['paper-accounts'] });
+      void queryClient.invalidateQueries({ queryKey: ['paper-portfolio'] });
+      void queryClient.invalidateQueries({ queryKey: ['paper-orders'] });
     },
     onError: (error: Error) => showToast(error.message),
   });
@@ -42,15 +69,18 @@ function TradePanel({ symbol, price }: { symbol: string; price: number }) {
         <button className={side === 'buy' ? 'active buy' : ''} onClick={() => setSide('buy')}>구매</button>
         <button className={side === 'sell' ? 'active sell' : ''} onClick={() => setSide('sell')}>판매</button>
       </div>
-      <div className="available"><span>주문 가능 금액</span><strong>$4,128.60</strong></div>
+      <div className="available">
+        <span>주문 가능 금액</span>
+        <strong>{cashBalance ? formatCash(Number(cashBalance.amount), currency) : '불러오는 중'}</strong>
+      </div>
       <label>주문 방식</label>
       <div className="segmented">{['지정가', '시장가'].map((item) => <button key={item} className={orderType === item ? 'active' : ''} onClick={() => setOrderType(item)}>{item}</button>)}</div>
       <label>주문 가격</label>
-      <div className="price-input"><button>−</button><div><strong>${price.toFixed(2)}</strong><span>약 320,100원</span></div><button>＋</button></div>
+      <div className="price-input"><button>−</button><div><strong>{formatCash(price, currency)}</strong><span>데모 시세 기준</span></div><button>＋</button></div>
       <label>수량</label>
       <div className="quantity-input"><button onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</button><strong>{quantity}주</strong><button onClick={() => setQuantity(quantity + 1)}>＋</button></div>
       <div className="quick-amounts">{['10%', '25%', '50%', '최대'].map((item) => <button key={item}>{item}</button>)}</div>
-      <div className="order-summary"><div><span>예상 주문 금액</span><strong>${(price * quantity).toFixed(2)}</strong></div><div><span>예상 수수료</span><strong>$0.00</strong></div></div>
+      <div className="order-summary"><div><span>예상 주문 금액</span><strong>{formatCash(price * quantity, currency)}</strong></div><div><span>예상 수수료</span><strong>{formatCash(price * quantity * 0.001, currency)}</strong></div></div>
       <button className={`order-button ${side}`} onClick={submitOrder} disabled={orderMutation.isPending}>
         {orderMutation.isPending ? '주문 접수 중…' : `${quantity}주 ${side === 'buy' ? '구매하기' : '판매하기'}`}
       </button>
@@ -133,7 +163,7 @@ export function MarketPage() {
             <div className="empty-state"><span><Icon name={activeTab === '기업정보' ? 'chart' : 'book'} size={28} /></span><h3>{activeTab} 화면</h3><p>한투 API 및 데이터 소스 연결 후 실시간 정보가 표시됩니다.</p></div>
           )}
         </section>
-        <TradePanel symbol={symbol} price={currentPrice} />
+        <TradePanel symbol={symbol} price={currentPrice} currency={currency} />
       </div>
     </PageContainer>
   );
