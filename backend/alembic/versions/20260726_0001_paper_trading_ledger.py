@@ -25,8 +25,12 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=100), nullable=False),
         sa.Column("base_currency", sa.String(length=3), nullable=False),
         sa.Column("status", sa.String(length=20), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_paper_accounts")),
     )
     op.create_index(op.f("ix_paper_accounts_user_id"), "paper_accounts", ["user_id"])
@@ -36,8 +40,12 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=200), nullable=False),
         sa.Column("currency", sa.String(length=3), nullable=False),
         sa.Column("market", sa.String(length=20), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("symbol", name=op.f("pk_securities")),
     )
     op.create_table(
@@ -51,7 +59,9 @@ def upgrade() -> None:
         sa.Column("quantity", sa.Numeric(precision=28, scale=8), nullable=False),
         sa.Column("requested_price", sa.Numeric(precision=28, scale=8), nullable=True),
         sa.Column("status", sa.String(length=20), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+        ),
         sa.CheckConstraint("quantity > 0", name=op.f("ck_paper_orders_quantity_positive")),
         sa.ForeignKeyConstraint(
             ["account_id"], ["paper_accounts.id"], name=op.f("fk_paper_orders_account_id_paper_accounts")
@@ -77,7 +87,9 @@ def upgrade() -> None:
         sa.Column("gross_amount", sa.Numeric(precision=28, scale=8), nullable=False),
         sa.Column("fee", sa.Numeric(precision=28, scale=8), nullable=False),
         sa.Column("realized_pnl", sa.Numeric(precision=28, scale=8), nullable=False),
-        sa.Column("executed_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "executed_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+        ),
         sa.CheckConstraint("price > 0", name=op.f("ck_paper_executions_price_positive")),
         sa.CheckConstraint("quantity > 0", name=op.f("ck_paper_executions_quantity_positive")),
         sa.ForeignKeyConstraint(
@@ -95,7 +107,9 @@ def upgrade() -> None:
         sa.Column("entry_type", sa.String(length=30), nullable=False),
         sa.Column("amount", sa.Numeric(precision=28, scale=8), nullable=False),
         sa.Column("balance_after", sa.Numeric(precision=28, scale=8), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+        ),
         sa.ForeignKeyConstraint(
             ["account_id"], ["paper_accounts.id"], name=op.f("fk_cash_ledger_entries_account_id_paper_accounts")
         ),
@@ -118,7 +132,9 @@ def upgrade() -> None:
         sa.Column("quantity", sa.Numeric(precision=28, scale=8), nullable=False),
         sa.Column("average_cost", sa.Numeric(precision=28, scale=8), nullable=False),
         sa.Column("realized_pnl", sa.Numeric(precision=28, scale=8), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+        ),
         sa.CheckConstraint("quantity >= 0", name=op.f("ck_positions_quantity_nonnegative")),
         sa.ForeignKeyConstraint(
             ["account_id"], ["paper_accounts.id"], name=op.f("fk_positions_account_id_paper_accounts")
@@ -138,7 +154,9 @@ def upgrade() -> None:
         sa.Column("cash_value", sa.Numeric(precision=28, scale=8), nullable=False),
         sa.Column("positions_value", sa.Numeric(precision=28, scale=8), nullable=False),
         sa.Column("total_value", sa.Numeric(precision=28, scale=8), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+        ),
         sa.ForeignKeyConstraint(
             ["account_id"], ["paper_accounts.id"], name=op.f("fk_portfolio_snapshots_account_id_paper_accounts")
         ),
