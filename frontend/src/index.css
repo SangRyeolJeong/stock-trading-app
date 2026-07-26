@@ -290,6 +290,7 @@ button, .card, .nav-item { -webkit-tap-highlight-color: transparent; }
 .money-input { display: flex; align-items: center; gap: 7px; padding: 11px 13px; border: 1px solid #2a3340; border-radius: 9px; background: #11151c; }
 .money-input span { color: #637084; }
 .money-input strong { flex: 1; font-size: 14px; }
+.money-input input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 14px; font-weight: 600; }
 .money-input em { color: #798496; font-size: 9px; font-style: normal; }
 .form-note { display: flex; align-items: center; gap: 8px; margin-top: 20px; padding: 10px; border-radius: 8px; color: #6d7c92; background: #19212d; }
 .form-note p { margin: 0; font-size: 8px; }
@@ -339,7 +340,14 @@ button, .card, .nav-item { -webkit-tap-highlight-color: transparent; }
 .account-detail dl div { flex: 1; padding: 0 16px; border-left: 1px solid #29313d; }
 .account-detail dt { color: #657185; font-size: 8px; }
 .account-detail dd { margin: 5px 0 0; color: #aeb8c5; font-size: 9px; }
-.account-detail > button { display: flex; align-items: center; gap: 3px; padding: 8px 10px; border-radius: 8px; color: #8da5f5; background: #202d49; font-size: 8px; }
+.account-detail > button, .account-detail > a { display: flex; align-items: center; gap: 3px; padding: 8px 10px; border-radius: 8px; color: #8da5f5; background: #202d49; font-size: 8px; }
+.tax-loading { display: grid; min-height: 300px; place-items: center; color: #657185; font-size: 10px; }
+.tax-breakdown { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 20px; }
+.tax-breakdown span { display: flex; flex-direction: column; gap: 5px; padding: 11px; border-radius: 8px; color: #697587; background: #19202b; font-size: 8px; }
+.tax-breakdown strong { color: #b7c0ce; font-size: 11px; }
+.tax-notes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 10px; padding: 17px 20px; }
+.tax-notes div { display: flex; flex-direction: column; gap: 6px; color: #6f7b8d; font-size: 8px; }
+.tax-notes strong { margin-bottom: 2px; color: #aeb8c5; font-size: 9px; }
 
 .strategy-hero { position: relative; min-height: 225px; display: flex; align-items: center; justify-content: space-between; overflow: hidden; padding: 30px 50px; border: 1px solid #28324a; border-radius: 18px; background: radial-gradient(circle at 80% 50%, rgba(80,112,216,.2), transparent 35%), linear-gradient(135deg, #18233d, #141927 60%, #1a2030); }
 .ai-badge.light { color: #aabaff; background: rgba(89,119,214,.18); }

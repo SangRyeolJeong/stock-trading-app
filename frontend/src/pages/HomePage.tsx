@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
 import { holdings, watchlist } from '../data/mock/market';
 import { marketApi } from '../services/marketApi';
+import { taxApi } from '../services/taxApi';
 import { formatChangeRate, formatQuotePrice } from '../utils/format';
 
 function MiniLineChart() {
@@ -44,6 +45,25 @@ export function HomePage() {
       positive: Number(quote.change_rate) >= 0,
     } : stock;
   });
+  const taxQuery = useQuery({
+    queryKey: ['tax-simulation', 45_000_000, 500_000, 30, 7, 60],
+    queryFn: () => taxApi.simulate({
+      annual_salary_krw: 45_000_000,
+      monthly_contribution_krw: 500_000,
+      investment_years: 30,
+      annual_return_rate_pct: 7,
+      withdrawal_age: 60,
+    }),
+  });
+  const taxWinner = taxQuery.data?.results.find(
+    (result) => result.account_type === taxQuery.data?.best_account_type,
+  );
+  const taxSaving = Number(taxWinner?.tax_savings_vs_direct ?? 0);
+  const taxSavingText = !taxWinner
+    ? '계산 중'
+    : taxSaving >= 100_000_000
+      ? `${(taxSaving / 100_000_000).toFixed(2)}억원`
+      : `${Math.round(taxSaving / 10_000).toLocaleString('ko-KR')}만원`;
 
   return (
     <PageContainer className="home-page">
@@ -73,12 +93,12 @@ export function HomePage() {
 
         <article className="card tax-score-card">
           <div className="card-heading">
-            <div><span className="label">나의 절세 점수</span><p>놓치고 있는 혜택을 확인해보세요</p></div>
+            <div><span className="label">절세 시뮬레이션</span><p>공식 규칙으로 비교한 결과예요</p></div>
             <button className="more-button" onClick={() => navigate('/tax-planner')}><Icon name="chevron" size={18} /></button>
           </div>
           <div className="score-wrap">
-            <div className="score-ring"><div><strong>72</strong><span>/ 100점</span></div></div>
-            <div className="score-copy"><span className="pill positive">상위 31%</span><strong>잘하고 있어요!</strong><p>연금저축을 더 활용하면<br />최대 304,000원 절약 가능해요.</p></div>
+            <div className="score-ring" style={{ background: `conic-gradient(#557eff 0 ${taxWinner?.score ?? 0}%, #252d39 ${taxWinner?.score ?? 0}% 100%)` }}><div><strong>{taxWinner?.score ?? '—'}</strong><span>/ 100점</span></div></div>
+            <div className="score-copy"><span className="pill positive">{taxQuery.data?.rules.version ?? '계산 중'}</span><strong>{taxWinner?.name ?? '분석 중'}</strong><p>동일 조건의 해외직투보다<br />약 {taxSavingText} 유리한 추정치예요.</p></div>
           </div>
           <button className="soft-button" onClick={() => navigate('/tax-planner')}>내 절세 리포트 보기 <Icon name="chevron" size={15} /></button>
         </article>
@@ -108,10 +128,10 @@ export function HomePage() {
           <h2>나스닥100, 어떤 계좌와<br />ETF가 가장 유리할까요?</h2>
           <p>30년 장기투자와 월 50만원 적립을 기준으로<br />세후 수익을 비교했어요.</p>
           <div className="compare-preview">
-            <div><span>추천 조합</span><strong>연금저축 + TIGER 미국나스닥100</strong></div>
-            <div><span>예상 절세</span><strong>약 4,820만원</strong></div>
+            <div><span>추천 조합</span><strong>{taxWinner ? `${taxWinner.name} + ${taxWinner.recommended_product}` : '계산 중'}</strong></div>
+            <div><span>예상 절세</span><strong>약 {taxSavingText}</strong></div>
           </div>
-          <button onClick={() => navigate('/strategy')}>분석 결과 자세히 보기 <Icon name="chevron" size={15} /></button>
+          <button onClick={() => navigate('/tax-planner')}>분석 결과 자세히 보기 <Icon name="chevron" size={15} /></button>
           <span className="decor-orb orb-one" /><span className="decor-orb orb-two" />
         </article>
 

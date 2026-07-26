@@ -114,3 +114,52 @@ export interface QuoteTick {
   as_of: string;
   source: string;
 }
+
+export type TaxAccountType = 'direct' | 'isa' | 'pension' | 'irp';
+
+export interface TaxSimulationRequest {
+  annual_salary_krw: number | string;
+  monthly_contribution_krw: number | string;
+  investment_years: number;
+  annual_return_rate_pct: number | string;
+  withdrawal_age: number;
+}
+
+export interface TaxRuleSource {
+  title: string;
+  url: string;
+  authority: string;
+}
+
+export interface TaxAccountResult {
+  account_type: TaxAccountType;
+  name: string;
+  tag: string;
+  tax_description: string;
+  contribution_limit_description: string;
+  recommended_product: string;
+  eligible_contribution: string;
+  overflow_contribution: string;
+  gross_value: string;
+  contribution_tax_credit: string;
+  investment_tax: string;
+  withdrawal_tax: string;
+  after_tax_value: string;
+  tax_savings_vs_direct: string;
+  score: number;
+  benefits: string[];
+  cautions: string[];
+}
+
+export interface TaxSimulationResponse {
+  best_account_type: TaxAccountType;
+  results: TaxAccountResult[];
+  rules: {
+    version: string;
+    effective_date: string;
+    parameters: Record<string, string>;
+    sources: TaxRuleSource[];
+  };
+  assumptions: string[];
+  disclaimer: string;
+}

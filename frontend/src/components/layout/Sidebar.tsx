@@ -32,8 +32,8 @@ export function Sidebar() {
       <div className="sidebar-guide">
         <span className="guide-icon"><Icon name="sparkles" size={18} /></span>
         <strong>이번 달 절세 체크</strong>
-        <p>연금저축 세액공제 한도까지<br /><b>184만원</b> 남았어요</p>
-        <NavLink to="/tax-planner">채우러 가기 <Icon name="chevron" size={14} /></NavLink>
+        <p>연금저축과 IRP의 한도를<br /><b>공식 규칙</b>으로 비교해보세요.</p>
+        <NavLink to="/tax-planner">계산하기 <Icon name="chevron" size={14} /></NavLink>
       </div>
       <div className="profile">
         <span className="avatar">김</span>
