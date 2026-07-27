@@ -97,14 +97,57 @@ export interface StrategyRequest {
   horizon_years: number;
   monthly_amount_krw: number;
   risk_profile: 'conservative' | 'balanced' | 'growth';
+  liquidity_preference: boolean;
+  fee_sensitivity: boolean;
+  income_preference: boolean;
+  tax_efficiency_priority: boolean;
+}
+
+export interface StrategyAllocation {
+  asset_class: string;
+  label: string;
+  weight_pct: number;
+  monthly_amount_krw: number;
+  account_type: 'direct' | 'isa' | 'pension' | 'irp' | 'cash';
+  product_example: string;
+  role: string;
+}
+
+export interface StrategyReason {
+  code: string;
+  title: string;
+  description: string;
+}
+
+export interface StrategyRiskSummary {
+  level: StrategyRequest['risk_profile'];
+  equity_weight_pct: number;
+  defensive_weight_pct: number;
+  liquidity_weight_pct: number;
+  volatility_note: string;
+}
+
+export interface StrategyActionStep {
+  order: number;
+  title: string;
+  description: string;
 }
 
 export interface StrategyResponse {
+  engine_version: string;
+  strategy_id: string;
   title: string;
+  summary: string;
   score: number;
   allocation: Record<string, number>;
+  allocations: StrategyAllocation[];
   reason_codes: string[];
   reasons: string[];
+  rationale: StrategyReason[];
+  risk_summary: StrategyRiskSummary;
+  action_steps: StrategyActionStep[];
+  warnings: string[];
+  assumptions: string[];
   disclaimer: string;
 }
 
