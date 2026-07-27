@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     kis_default_overseas_exchange: str = "NAS"
     kis_fx_probe_symbol: str = "AAPL"
     kis_fx_probe_exchange: str = "NAS"
+    kis_master_refresh_enabled: bool = True
+    market_quote_cache_seconds: float = 3.0
+    market_chart_cache_seconds: float = 300.0
+    market_fx_cache_seconds: float = 60.0
 
     @field_validator("cors_origins", mode="before")
     @classmethod

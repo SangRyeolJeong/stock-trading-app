@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -139,5 +139,47 @@ class KisClient:
             params={
                 "FID_COND_MRKT_DIV_CODE": "J",
                 "FID_INPUT_ISCD": symbol,
+            },
+        )
+
+    async def get_domestic_daily_chart(
+        self,
+        symbol: str,
+        *,
+        start_date: date,
+        end_date: date,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice",
+            tr_id="FHKST03010100",
+            params={
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": symbol,
+                "FID_INPUT_DATE_1": start_date.strftime("%Y%m%d"),
+                "FID_INPUT_DATE_2": end_date.strftime("%Y%m%d"),
+                "FID_PERIOD_DIV_CODE": "D",
+                "FID_ORG_ADJ_PRC": "0",
+            },
+        )
+
+    async def get_overseas_daily_prices(
+        self,
+        symbol: str,
+        exchange: str = "NAS",
+        *,
+        before_date: date | None = None,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            "/uapi/overseas-price/v1/quotations/dailyprice",
+            tr_id="HHDFS76240000",
+            params={
+                "AUTH": "",
+                "EXCD": exchange,
+                "SYMB": symbol,
+                "GUBN": "0",
+                "BYMD": before_date.strftime("%Y%m%d") if before_date else "",
+                "MODP": "1",
             },
         )

@@ -1,21 +1,58 @@
 import asyncio
 import random
-from collections.abc import AsyncIterator
-from datetime import UTC, datetime, time
+from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 from zoneinfo import ZoneInfo
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import MarketDataError
 from app.integrations.kis.client import KisClient
-from app.schemas.market import ExchangeRate, Quote
+from app.schemas.market import Candle, CandleSeries, ExchangeRate, Quote
+from app.services.instruments import InstrumentCatalog
+
+T = TypeVar("T")
 
 
 class MarketDataProvider(Protocol):
     async def get_quote(self, symbol: str) -> Quote | None: ...
     async def get_exchange_rate(self, base_currency: str, quote_currency: str) -> ExchangeRate | None: ...
+    async def get_candles(self, symbol: str, limit: int = 120) -> CandleSeries | None: ...
     async def subscribe_quotes(self, symbol: str) -> AsyncIterator[dict[str, object]]: ...
+
+
+def _mock_candles(symbol: str, price: Decimal, currency: str, limit: int) -> CandleSeries:
+    rng = random.Random(symbol)
+    cursor = datetime.now(UTC).date()
+    close = price * Decimal("0.86")
+    rows: list[Candle] = []
+    while len(rows) < limit:
+        if cursor.weekday() < 5:
+            change = Decimal(str(rng.uniform(-0.025, 0.027)))
+            open_price = close
+            close = max(Decimal("0.01"), open_price * (Decimal("1") + change))
+            high = max(open_price, close) * Decimal(str(rng.uniform(1.001, 1.014)))
+            low = min(open_price, close) * Decimal(str(rng.uniform(0.986, 0.999)))
+            rows.append(
+                Candle(
+                    date=cursor,
+                    open=open_price.quantize(Decimal("0.01")),
+                    high=high.quantize(Decimal("0.01")),
+                    low=low.quantize(Decimal("0.01")),
+                    close=close.quantize(Decimal("0.01")),
+                    volume=Decimal(rng.randint(200_000, 4_000_000)),
+                )
+            )
+        cursor -= timedelta(days=1)
+    rows.reverse()
+    return CandleSeries(
+        symbol=symbol,
+        currency=currency,
+        source="mock",
+        candles=rows,
+        as_of=datetime.now(UTC),
+    )
 
 
 class MockMarketDataProvider:
@@ -24,7 +61,7 @@ class MockMarketDataProvider:
         self._quotes = {
             "QQQM": Quote(
                 symbol="QQQM",
-                name="Invesco NASDAQ 100 ETF",
+                name="인베스코 나스닥 100 ETF",
                 currency="USD",
                 price=Decimal("231.72"),
                 change=Decimal("2.94"),
@@ -54,7 +91,7 @@ class MockMarketDataProvider:
             ),
             "AAPL": Quote(
                 symbol="AAPL",
-                name="Apple",
+                name="애플",
                 currency="USD",
                 price=Decimal("219.31"),
                 change=Decimal("2.00"),
@@ -64,7 +101,7 @@ class MockMarketDataProvider:
             ),
             "NVDA": Quote(
                 symbol="NVDA",
-                name="NVIDIA",
+                name="엔비디아",
                 currency="USD",
                 price=Decimal("174.92"),
                 change=Decimal("4.12"),
@@ -98,6 +135,12 @@ class MockMarketDataProvider:
             as_of=datetime.now(UTC),
         )
 
+    async def get_candles(self, symbol: str, limit: int = 120) -> CandleSeries | None:
+        quote = await self.get_quote(symbol)
+        if quote is None:
+            return None
+        return _mock_candles(quote.symbol, quote.price, quote.currency, limit)
+
     async def subscribe_quotes(self, symbol: str) -> AsyncIterator[dict[str, object]]:
         quote = self._quotes[symbol]
         price = float(quote.price)
@@ -110,15 +153,6 @@ class MockMarketDataProvider:
                 "source": "demo",
             }
             await asyncio.sleep(1)
-
-
-INSTRUMENTS: dict[str, tuple[str, str]] = {
-    "005930": ("삼성전자", "KRX"),
-    "360750": ("TIGER 미국S&P500", "KRX"),
-    "AAPL": ("Apple", "NAS"),
-    "NVDA": ("NVIDIA", "NAS"),
-    "QQQM": ("Invesco NASDAQ 100 ETF", "NAS"),
-}
 
 
 def _decimal(output: dict[str, Any], key: str) -> Decimal:
@@ -143,6 +177,13 @@ def _output(payload: dict[str, Any]) -> dict[str, Any]:
     return output
 
 
+def _output_rows(payload: dict[str, Any], key: str = "output2") -> list[dict[str, Any]]:
+    output = payload.get(key)
+    if not isinstance(output, list):
+        raise MarketDataError(f"KIS 시세 응답에 {key}가 없습니다.")
+    return [row for row in output if isinstance(row, dict)]
+
+
 def _is_market_open(exchange: str, now: datetime | None = None) -> bool:
     utc_now = now or datetime.now(UTC)
     timezone = ZoneInfo("Asia/Seoul") if exchange == "KRX" else ZoneInfo("America/New_York")
@@ -155,20 +196,32 @@ def _is_market_open(exchange: str, now: datetime | None = None) -> bool:
 
 
 class KisMarketDataProvider:
-    def __init__(self, settings: Settings, client: KisClient | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        client: KisClient | None = None,
+        catalog: InstrumentCatalog | None = None,
+    ) -> None:
         self._settings = settings
         self._client = client or KisClient(settings)
+        self._catalog = catalog or InstrumentCatalog(settings)
 
-    async def get_quote(self, symbol: str) -> Quote | None:
+    def _identity(self, symbol: str) -> tuple[str, str, str]:
         normalized = symbol.strip().upper()
-        if not normalized:
-            return None
+        instrument = self._catalog.resolve(normalized)
         default_exchange = (
             "KRX"
             if normalized.isdigit() and len(normalized) == 6
             else self._settings.kis_default_overseas_exchange
         )
-        name, exchange = INSTRUMENTS.get(normalized, (normalized, default_exchange))
+        if instrument is None:
+            return normalized, normalized, default_exchange
+        return normalized, instrument.name, instrument.exchange_code
+
+    async def get_quote(self, symbol: str) -> Quote | None:
+        normalized, name, exchange = self._identity(symbol)
+        if not normalized:
+            return None
         now = datetime.now(UTC)
 
         if exchange == "KRX":
@@ -226,6 +279,72 @@ class KisMarketDataProvider:
             as_of=datetime.now(UTC),
         )
 
+    async def get_candles(self, symbol: str, limit: int = 120) -> CandleSeries | None:
+        normalized, _, exchange = self._identity(symbol)
+        if not normalized:
+            return None
+        candles_by_date: dict[date, Candle] = {}
+        if exchange == "KRX":
+            end_date = datetime.now(ZoneInfo("Asia/Seoul")).date()
+            start_date = end_date - timedelta(days=max(limit * 2, 180))
+            for _ in range(5):
+                payload = await self._client.get_domestic_daily_chart(
+                    normalized,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                rows = _output_rows(payload)
+                for row in rows:
+                    if not row.get("stck_bsop_date"):
+                        continue
+                    candle = Candle(
+                        date=datetime.strptime(str(row["stck_bsop_date"]), "%Y%m%d").date(),
+                        open=_decimal(row, "stck_oprc"),
+                        high=_decimal(row, "stck_hgpr"),
+                        low=_decimal(row, "stck_lwpr"),
+                        close=_decimal(row, "stck_clpr"),
+                        volume=_decimal(row, "acml_vol"),
+                    )
+                    candles_by_date[candle.date] = candle
+                if len(rows) < 100 or len(candles_by_date) >= limit:
+                    break
+                end_date = min(candles_by_date) - timedelta(days=1)
+            currency: str = "KRW"
+        else:
+            before_date = None
+            for _ in range(5):
+                payload = await self._client.get_overseas_daily_prices(
+                    normalized,
+                    exchange,
+                    before_date=before_date,
+                )
+                rows = _output_rows(payload)
+                for row in rows:
+                    if not row.get("xymd"):
+                        continue
+                    candle = Candle(
+                        date=datetime.strptime(str(row["xymd"]), "%Y%m%d").date(),
+                        open=_decimal(row, "open"),
+                        high=_decimal(row, "high"),
+                        low=_decimal(row, "low"),
+                        close=_decimal(row, "clos"),
+                        volume=_decimal(row, "tvol"),
+                    )
+                    candles_by_date[candle.date] = candle
+                if len(rows) < 100 or len(candles_by_date) >= limit:
+                    break
+                before_date = min(candles_by_date) - timedelta(days=1)
+            currency = "USD"
+        candles = list(candles_by_date.values())
+        candles.sort(key=lambda candle: candle.date)
+        return CandleSeries(
+            symbol=normalized,
+            currency=currency,
+            source="kis",
+            candles=candles[-limit:],
+            as_of=datetime.now(UTC),
+        )
+
     async def subscribe_quotes(self, symbol: str) -> AsyncIterator[dict[str, object]]:
         while True:
             quote = await self.get_quote(symbol)
@@ -240,11 +359,82 @@ class KisMarketDataProvider:
             await asyncio.sleep(5)
 
 
-def create_market_data_service(settings: Settings | None = None) -> MarketDataProvider:
+class CachedMarketDataProvider:
+    def __init__(self, provider: MarketDataProvider, settings: Settings) -> None:
+        self._provider = provider
+        self._settings = settings
+        self._cache: dict[str, tuple[float, object]] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    async def _cached(self, key: str, ttl: float, loader: Callable[[], Awaitable[T]]) -> T:
+        now = asyncio.get_running_loop().time()
+        cached = self._cache.get(key)
+        if cached and now - cached[0] < ttl:
+            return cached[1]  # type: ignore[return-value]
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            now = asyncio.get_running_loop().time()
+            cached = self._cache.get(key)
+            if cached and now - cached[0] < ttl:
+                return cached[1]  # type: ignore[return-value]
+            value = await loader()
+            self._cache[key] = (now, value)
+            return value
+
+    async def get_quote(self, symbol: str) -> Quote | None:
+        normalized = symbol.strip().upper()
+        return await self._cached(
+            f"quote:{normalized}",
+            self._settings.market_quote_cache_seconds,
+            lambda: self._provider.get_quote(normalized),
+        )
+
+    async def get_exchange_rate(self, base_currency: str, quote_currency: str) -> ExchangeRate | None:
+        base, quote = base_currency.upper(), quote_currency.upper()
+        return await self._cached(
+            f"fx:{base}:{quote}",
+            self._settings.market_fx_cache_seconds,
+            lambda: self._provider.get_exchange_rate(base, quote),
+        )
+
+    async def get_candles(self, symbol: str, limit: int = 120) -> CandleSeries | None:
+        normalized = symbol.strip().upper()
+        return await self._cached(
+            f"candles:{normalized}:{limit}",
+            self._settings.market_chart_cache_seconds,
+            lambda: self._provider.get_candles(normalized, limit),
+        )
+
+    async def subscribe_quotes(self, symbol: str) -> AsyncIterator[dict[str, object]]:
+        if isinstance(self._provider, MockMarketDataProvider):
+            async for tick in self._provider.subscribe_quotes(symbol):
+                yield tick
+            return
+        while True:
+            quote = await self.get_quote(symbol)
+            if quote is None:
+                return
+            yield {
+                "symbol": quote.symbol,
+                "price": float(quote.price),
+                "as_of": quote.as_of.isoformat(),
+                "source": "kis-rest-cache",
+            }
+            await asyncio.sleep(max(3.0, self._settings.market_quote_cache_seconds))
+
+
+def create_market_data_service(
+    settings: Settings | None = None,
+    catalog: InstrumentCatalog | None = None,
+) -> MarketDataProvider:
     resolved_settings = settings or get_settings()
     if resolved_settings.market_data_provider == "kis":
-        return KisMarketDataProvider(resolved_settings)
-    return MockMarketDataProvider()
+        provider: MarketDataProvider = KisMarketDataProvider(resolved_settings, catalog=catalog)
+    else:
+        provider = MockMarketDataProvider()
+    return CachedMarketDataProvider(provider, resolved_settings)
 
 
-market_data_service = create_market_data_service()
+settings = get_settings()
+instrument_catalog = InstrumentCatalog(settings)
+market_data_service = create_market_data_service(settings, instrument_catalog)

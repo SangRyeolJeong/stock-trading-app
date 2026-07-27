@@ -19,6 +19,42 @@ export interface ExchangeRate {
   as_of: string;
 }
 
+export interface Instrument {
+  symbol: string;
+  name: string;
+  english_name: string | null;
+  market: string;
+  exchange_code: string;
+  currency: 'KRW' | 'USD';
+  asset_type: 'stock' | 'etf' | 'etn' | 'index' | 'other';
+  country: 'KR' | 'US';
+}
+
+export interface InstrumentSearchResponse {
+  items: Instrument[];
+  total: number;
+  source: 'builtin' | 'kis-master' | 'kis-master-cache';
+  updated_at: string;
+}
+
+export interface Candle {
+  date: string;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume: string;
+}
+
+export interface CandleSeries {
+  symbol: string;
+  currency: 'KRW' | 'USD';
+  interval: '1d';
+  source: 'mock' | 'kis';
+  candles: Candle[];
+  as_of: string;
+}
+
 export interface PaperOrderRequest {
   symbol: string;
   side: 'buy' | 'sell';

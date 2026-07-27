@@ -38,3 +38,6 @@ coverage/
 playwright-report/
 test-results/
 *.db
+
+# Downloaded market master data
+backend/.cache/

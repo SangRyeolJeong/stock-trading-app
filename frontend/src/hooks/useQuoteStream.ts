@@ -13,6 +13,7 @@ export function useQuoteStream(symbol: string) {
     let retryTimer: number | undefined;
     let retryCount = 0;
     let disposed = false;
+    setTick(null);
 
     const connect = () => {
       if (disposed) return;

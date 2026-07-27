@@ -6,5 +6,7 @@ export function useQuote(symbol: string) {
     queryKey: ['quote', symbol],
     queryFn: () => marketApi.getQuote(symbol),
     enabled: Boolean(symbol),
+    staleTime: 3_000,
+    retry: 1,
   });
 }
