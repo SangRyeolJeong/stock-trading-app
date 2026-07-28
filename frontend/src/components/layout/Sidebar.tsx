@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { Icon, type IconName } from '../common/Icon';
+import { useUserPreferences } from '../../data/userPreferences';
 import { Logo } from './Logo';
 
 const navigation = [
@@ -12,6 +13,10 @@ const navigation = [
 ];
 
 export function Sidebar() {
+  const navigate = useNavigate();
+  const preferences = useUserPreferences();
+  const initial = preferences.displayName.trim().charAt(0) || 'M';
+
   return (
     <aside className="sidebar">
       <NavLink to="/" aria-label="MOA 홈"><Logo /></NavLink>
@@ -32,13 +37,13 @@ export function Sidebar() {
       <div className="sidebar-guide">
         <span className="guide-icon"><Icon name="sparkles" size={18} /></span>
         <strong>이번 달 절세 체크</strong>
-        <p>연금저축 세액공제 한도까지<br /><b>184만원</b> 남았어요</p>
-        <NavLink to="/tax-planner">채우러 가기 <Icon name="chevron" size={14} /></NavLink>
+        <p>연금저축과 IRP의 한도를<br /><b>공식 규칙</b>으로 비교해보세요.</p>
+        <NavLink to="/tax-planner">계산하기 <Icon name="chevron" size={14} /></NavLink>
       </div>
       <div className="profile">
-        <span className="avatar">김</span>
-        <div><strong>김모아</strong><span>안전한 모의투자</span></div>
-        <button aria-label="프로필 더보기"><Icon name="more" size={18} /></button>
+        <span className="avatar">{initial}</span>
+        <div><strong>{preferences.displayName}</strong><span>안전한 모의투자</span></div>
+        <button onClick={() => navigate('/settings')} aria-label="내 설정 열기"><Icon name="more" size={18} /></button>
       </div>
     </aside>
   );

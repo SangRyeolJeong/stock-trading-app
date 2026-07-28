@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import lru_cache
 from typing import Annotated, Literal
 
@@ -24,15 +25,25 @@ class Settings(BaseSettings):
         ]
     )
 
-    database_url: str | None = None
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/moa"
     redis_url: str = "redis://localhost:6379/0"
     market_data_provider: Literal["mock", "kis"] = "mock"
+    paper_initial_krw: Decimal = Decimal("10000000")
+    paper_initial_usd: Decimal = Decimal("10000")
+    paper_fee_rate: Decimal = Decimal("0.001")
 
     kis_environment: Literal["paper", "production"] = "paper"
     kis_app_key: str | None = None
     kis_app_secret: str | None = None
     kis_account_number: str | None = None
     kis_account_product_code: str = "01"
+    kis_default_overseas_exchange: str = "NAS"
+    kis_fx_probe_symbol: str = "AAPL"
+    kis_fx_probe_exchange: str = "NAS"
+    kis_master_refresh_enabled: bool = True
+    market_quote_cache_seconds: float = 3.0
+    market_chart_cache_seconds: float = 300.0
+    market_fx_cache_seconds: float = 60.0
 
     @field_validator("cors_origins", mode="before")
     @classmethod

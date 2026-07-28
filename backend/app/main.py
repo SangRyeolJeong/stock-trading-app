@@ -9,7 +9,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(
         title=settings.app_name,
-        version="0.2.0",
+        version="0.5.0",
         description="KIS market data, paper trading, portfolio and tax-strategy API",
     )
     application.add_middleware(

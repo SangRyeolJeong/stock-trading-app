@@ -1,46 +1,97 @@
-import React from 'react';
-import useStockStore from '../store/useStockStore';
+import type { OrderBook as OrderBookData, OrderBookLevel } from '../types/api';
+import { formatQuotePrice, formatUpdatedAt } from '../utils/format';
+import { Icon } from './common/Icon';
 
 interface OrderBookProps {
-  onOrderClick: (price: string, type: 'buy' | 'sell') => void;
+  data: OrderBookData | undefined;
+  currentPrice: number;
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
 }
 
-const OrderBook: React.FC<OrderBookProps> = ({ onOrderClick }) => {
-  const { orderBook } = useStockStore();
+function formatQuantity(value: string) {
+  return Number(value).toLocaleString('ko-KR', { maximumFractionDigits: 4 });
+}
 
-  if (!orderBook) {
-    return <div className="text-toss_text_secondary">호가 정보를 불러오는 중...</div>;
-  }
-
-  const renderOrderBookEntries = (entries: { price: string; quantity: string }[], type: 'buy' | 'sell') => {
-    return entries.map((entry, index) => (
-      <div
-        key={index}
-        className={`flex justify-between items-center py-1 px-2 rounded-md cursor-pointer
-          ${type === 'sell' ? 'hover:bg-red-700' : 'hover:bg-blue-700'}`}
-        onClick={() => onOrderClick(entry.price, type)}
-      >
-        <span className={`${type === 'sell' ? 'text-toss_red' : 'text-toss_blue'} font-semibold`}>{entry.price}</span>
-        <span className="text-toss_text_primary">{entry.quantity}</span>
-      </div>
-    ));
-  };
-
+function OrderLevel({
+  level,
+  type,
+  maxQuantity,
+  currency,
+}: {
+  level: OrderBookLevel;
+  type: 'ask' | 'bid';
+  maxQuantity: number;
+  currency: 'KRW' | 'USD';
+}) {
+  const depth = maxQuantity > 0 ? Math.min((Number(level.quantity) / maxQuantity) * 100, 100) : 0;
   return (
-    <div className="bg-toss_navy p-4 rounded-lg shadow-lg h-full flex flex-col">
-      <h2 className="text-xl font-bold text-toss_text_primary mb-4">호가창</h2>
-      <div className="flex flex-col flex-grow">
-        <div className="flex-grow bg-[#2A1A2E] rounded-md p-2 mb-2">
-          <h3 className="text-toss_red text-lg font-bold mb-2">매도 호가</h3>
-          {renderOrderBookEntries(orderBook.sell, 'sell')}
-        </div>
-        <div className="flex-grow bg-[#1A2A3E] rounded-md p-2 mt-2">
-          <h3 className="text-toss_blue text-lg font-bold mb-2">매수 호가</h3>
-          {renderOrderBookEntries(orderBook.buy, 'buy')}
-        </div>
-      </div>
+    <div className={`orderbook-level ${type}`}>
+      <span className="orderbook-depth"><i style={{ width: `${depth}%` }} /></span>
+      <strong>{formatQuotePrice(level.price, currency)}</strong>
+      <span>{formatQuantity(level.quantity)}</span>
     </div>
   );
-};
+}
 
-export default OrderBook;
+export default function OrderBook({
+  data,
+  currentPrice,
+  isLoading,
+  isError,
+  onRetry,
+}: OrderBookProps) {
+  if (isLoading) return <div className="orderbook-state">호가를 불러오는 중…</div>;
+  if (isError) {
+    return (
+      <div className="orderbook-state error">
+        <span>호가 데이터를 불러오지 못했습니다.</span>
+        <button onClick={onRetry}>다시 시도</button>
+      </div>
+    );
+  }
+  if (!data || (!data.asks.length && !data.bids.length)) {
+    return <div className="orderbook-state">표시할 호가가 없습니다.</div>;
+  }
+
+  const maxQuantity = Math.max(
+    ...data.asks.map((level) => Number(level.quantity)),
+    ...data.bids.map((level) => Number(level.quantity)),
+    0,
+  );
+
+  return (
+    <div className="orderbook-view">
+      <div className="orderbook-summary">
+        <span>매도 잔량 <strong>{formatQuantity(data.total_ask_quantity)}</strong></span>
+        <small>{data.source === 'kis' ? 'KIS REST 호가' : '데모 호가'} · {formatUpdatedAt(data.as_of)}</small>
+        <span>매수 잔량 <strong>{formatQuantity(data.total_bid_quantity)}</strong></span>
+      </div>
+      <div className="orderbook-head"><span>잔량 비중</span><span>가격</span><span>수량</span></div>
+      {[...data.asks].reverse().map((level) => (
+        <OrderLevel
+          key={`ask-${level.price}`}
+          level={level}
+          type="ask"
+          maxQuantity={maxQuantity}
+          currency={data.currency}
+        />
+      ))}
+      <div className="orderbook-current">
+        <span><Icon name="refresh" size={13} /> 현재가</span>
+        <strong>{formatQuotePrice(currentPrice, data.currency)}</strong>
+        <small>{data.delayed ? '지연·데모 데이터' : '조회 시점 스냅샷'}</small>
+      </div>
+      {data.bids.map((level) => (
+        <OrderLevel
+          key={`bid-${level.price}`}
+          level={level}
+          type="bid"
+          maxQuantity={maxQuantity}
+          currency={data.currency}
+        />
+      ))}
+    </div>
+  );
+}

@@ -5,12 +5,20 @@
 
 ## 현재 구현 범위
 
-- React Router 기반 6개 독립 화면
+- React Router 기반 7개 독립 화면
 - TanStack Query 기반 시세 및 전략 서버 상태
 - FastAPI 데모 시세 REST API
 - QQQM 실시간 데모 WebSocket
-- 멱등성 키를 포함한 모의 주문 API
-- 규칙 기반 전략 추천 API
+- 환경변수 전환형 한국투자증권 국내·해외 현재가와 USD/KRW 환율
+- KIS 종목 마스터 기반 종목 검색과 국내 10단계·해외 최우선 호가
+- 2026년 규칙 버전 기반 ISA·연금저축·IRP·해외직투 절세 비교
+- PostgreSQL·SQLAlchemy 2.0 기반 모의투자 원장과 멱등 주문 API
+- 원화·달러 잔액, 시장가 체결, 지정가 대기·자동 체결·취소, 평균단가와 실현손익
+- DB 원장 기반 포트폴리오와 주문 내역 화면
+- 목표·기간·위험성향·선호 조건을 반영하는 구조화 전략 추천 API와 실행 계획
+- 공식 근거가 연결된 투자 학습 콘텐츠와 로컬 진도·이어보기
+- 종목과 주요 기능을 함께 찾는 키보드 지원 통합 검색
+- 이름·투자금·기간·수익률·위험성향을 홈과 계산 화면에서 공유하는 로컬 사용자 설정
 - 한투 REST 클라이언트 경계
 - FastAPI 테스트 및 Ruff 검사
 
@@ -24,6 +32,7 @@ Windows PowerShell:
 cd D:\programming\backend
 py -3.12 -m venv .venv-win
 .\.venv-win\Scripts\python -m pip install -r requirements-dev.txt
+.\.venv-win\Scripts\python -m alembic upgrade head
 .\.venv-win\Scripts\python -m pytest
 .\.venv-win\Scripts\python -m uvicorn app.main:app --reload --port 8000
 ```
@@ -40,6 +49,9 @@ npm run dev
 
 - 앱: `http://localhost:5173`
 - API 문서: `http://localhost:8000/docs`
+
+실제 한국투자증권 시세를 사용할 때는 `backend/.env`에
+`MARKET_DATA_PROVIDER=kis`, `KIS_APP_KEY`, `KIS_APP_SECRET`을 설정합니다.
 
 ## 검증
 
@@ -67,3 +79,4 @@ cd D:\programming\backend
 ```
 
 AI가 세율·수익률·ETF 보수를 임의로 생성하지 않도록 계산과 설명을 분리합니다.
+절세 계산 응답에는 적용 규칙 버전, 공식 근거 URL과 계산 가정이 함께 포함됩니다.
