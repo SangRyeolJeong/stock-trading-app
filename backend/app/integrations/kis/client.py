@@ -142,6 +142,18 @@ class KisClient:
             },
         )
 
+    async def get_overseas_orderbook(self, symbol: str, exchange: str = "NAS") -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            "/uapi/overseas-price/v1/quotations/inquire-asking-price",
+            tr_id="HHDFS76200100",
+            params={
+                "AUTH": "",
+                "EXCD": exchange,
+                "SYMB": symbol,
+            },
+        )
+
     async def get_domestic_daily_chart(
         self,
         symbol: str,

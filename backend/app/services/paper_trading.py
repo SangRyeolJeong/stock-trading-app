@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from decimal import ROUND_HALF_UP, Decimal
+from uuid import UUID
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,6 +54,10 @@ class IdempotencyConflictError(PaperTradingError):
 
 class AccountNotFoundError(PaperTradingError):
     status_code = 404
+
+
+class InvalidOrderStateError(PaperTradingError):
+    status_code = 409
 
 
 def money(value: Decimal) -> Decimal:
@@ -115,15 +120,19 @@ class PaperTradingService:
         return [CashBalance(currency=currency, amount=money(Decimal(amount))) for currency, amount in rows]
 
     @staticmethod
-    def _order_query() -> Select[tuple[PaperOrder, PaperExecution, Security]]:
+    def _order_query() -> Select[tuple[PaperOrder, PaperExecution | None, Security]]:
         return (
             select(PaperOrder, PaperExecution, Security)
-            .join(PaperExecution, PaperExecution.order_id == PaperOrder.id)
+            .outerjoin(PaperExecution, PaperExecution.order_id == PaperOrder.id)
             .join(Security, Security.symbol == PaperOrder.security_symbol)
         )
 
     @staticmethod
-    def _order_schema(order: PaperOrder, execution: PaperExecution, security: Security) -> PaperOrderSchema:
+    def _order_schema(
+        order: PaperOrder,
+        execution: PaperExecution | None,
+        security: Security,
+    ) -> PaperOrderSchema:
         return PaperOrderSchema(
             id=order.id,
             account_id=order.account_id,
@@ -135,12 +144,192 @@ class PaperTradingService:
             side=order.side,
             order_type=order.order_type,
             quantity=order.quantity,
-            filled_price=execution.price,
-            gross_amount=execution.gross_amount,
-            fee=execution.fee,
-            realized_pnl=execution.realized_pnl,
+            limit_price=order.requested_price,
+            filled_price=execution.price if execution else None,
+            gross_amount=execution.gross_amount if execution else None,
+            fee=execution.fee if execution else None,
+            realized_pnl=execution.realized_pnl if execution else None,
             created_at=order.created_at,
         )
+
+    @staticmethod
+    def _limit_is_marketable(side: str, limit_price: Decimal, market_price: Decimal) -> bool:
+        if side == "buy":
+            return limit_price >= market_price
+        return limit_price <= market_price
+
+    async def _reserved_resources(
+        self,
+        session: AsyncSession,
+        account_id: str,
+        currency: str,
+        symbol: str,
+        exclude_order_id: UUID | None = None,
+    ) -> tuple[Decimal, Decimal]:
+        statement = (
+            select(PaperOrder, Security)
+            .join(Security, Security.symbol == PaperOrder.security_symbol)
+            .where(PaperOrder.account_id == account_id, PaperOrder.status == "accepted")
+        )
+        if exclude_order_id is not None:
+            statement = statement.where(PaperOrder.id != exclude_order_id)
+        rows = (await session.execute(statement)).all()
+        reserved_cash = ZERO
+        reserved_quantity = ZERO
+        for order, security in rows:
+            if order.side == "buy" and security.currency == currency and order.requested_price is not None:
+                gross = order.requested_price * order.quantity
+                reserved_cash += gross + gross * self.fee_rate
+            elif order.side == "sell" and security.symbol == symbol:
+                reserved_quantity += order.quantity
+        return money(reserved_cash), reserved_quantity
+
+    async def _validate_resources(
+        self,
+        session: AsyncSession,
+        order: PaperOrder,
+        currency: str,
+        price: Decimal,
+        exclude_order_id: UUID | None = None,
+    ) -> None:
+        reserved_cash, reserved_quantity = await self._reserved_resources(
+            session,
+            order.account_id,
+            currency,
+            order.security_symbol,
+            exclude_order_id,
+        )
+        gross_amount = money(price * order.quantity)
+        fee = money(gross_amount * self.fee_rate)
+        if order.side == "buy":
+            current_cash = await self._cash_balance(session, order.account_id, currency)
+            available_cash = money(current_cash - reserved_cash)
+            if available_cash < gross_amount + fee:
+                raise InsufficientCashError(
+                    f"주문 가능 현금이 부족합니다. 필요 {gross_amount + fee} {currency}, "
+                    f"가용 {available_cash} {currency}"
+                )
+            return
+
+        position = await session.scalar(
+            select(Position)
+            .where(
+                Position.account_id == order.account_id,
+                Position.security_symbol == order.security_symbol,
+            )
+            .with_for_update()
+        )
+        held_quantity = position.quantity if position else ZERO
+        available_quantity = held_quantity - reserved_quantity
+        if available_quantity < order.quantity:
+            raise InsufficientPositionError(
+                f"보유 수량이 부족합니다. 주문 {order.quantity}주, 가용 {available_quantity}주"
+            )
+
+    async def _settle_order(
+        self,
+        session: AsyncSession,
+        order: PaperOrder,
+        quote: Quote,
+    ) -> PaperExecution:
+        fill_price = money(quote.price)
+        await self._validate_resources(
+            session,
+            order,
+            quote.currency,
+            fill_price,
+            exclude_order_id=order.id,
+        )
+        gross_amount = money(fill_price * order.quantity)
+        fee = money(gross_amount * self.fee_rate)
+        current_cash = await self._cash_balance(session, order.account_id, quote.currency)
+        position = await session.scalar(
+            select(Position)
+            .where(
+                Position.account_id == order.account_id,
+                Position.security_symbol == quote.symbol,
+            )
+            .with_for_update()
+        )
+        held_quantity = position.quantity if position else ZERO
+
+        realized_pnl = ZERO
+        if order.side == "buy":
+            new_quantity = held_quantity + order.quantity
+            previous_cost = held_quantity * (position.average_cost if position else ZERO)
+            new_average_cost = money((previous_cost + gross_amount) / new_quantity)
+            if position is None:
+                position = Position(
+                    account_id=order.account_id,
+                    security_symbol=quote.symbol,
+                    quantity=new_quantity,
+                    average_cost=new_average_cost,
+                    realized_pnl=ZERO,
+                )
+                session.add(position)
+            else:
+                position.quantity = new_quantity
+                position.average_cost = new_average_cost
+            trade_amount = -gross_amount
+        else:
+            assert position is not None
+            realized_pnl = money((fill_price - position.average_cost) * order.quantity - fee)
+            position.quantity = held_quantity - order.quantity
+            position.realized_pnl = money(position.realized_pnl + realized_pnl)
+            trade_amount = gross_amount
+
+        execution = PaperExecution(
+            order_id=order.id,
+            quantity=order.quantity,
+            price=fill_price,
+            gross_amount=gross_amount,
+            fee=fee,
+            realized_pnl=realized_pnl,
+        )
+        session.add(execution)
+        order.status = "filled"
+
+        balance_after_trade = money(current_cash + trade_amount)
+        session.add(
+            CashLedgerEntry(
+                account_id=order.account_id,
+                order_id=order.id,
+                currency=quote.currency,
+                entry_type="trade_settlement",
+                amount=trade_amount,
+                balance_after=balance_after_trade,
+            )
+        )
+        final_balance = money(balance_after_trade - fee)
+        session.add(
+            CashLedgerEntry(
+                account_id=order.account_id,
+                order_id=order.id,
+                currency=quote.currency,
+                entry_type="commission",
+                amount=-fee,
+                balance_after=final_balance,
+            )
+        )
+        await session.flush()
+
+        positions_value = await session.scalar(
+            select(func.coalesce(func.sum(Position.quantity * Position.average_cost), ZERO))
+            .join(Security, Security.symbol == Position.security_symbol)
+            .where(Position.account_id == order.account_id, Security.currency == quote.currency)
+        )
+        positions_value = money(Decimal(positions_value or ZERO))
+        session.add(
+            PortfolioSnapshot(
+                account_id=order.account_id,
+                currency=quote.currency,
+                cash_value=final_balance,
+                positions_value=positions_value,
+                total_value=money(final_balance + positions_value),
+            )
+        )
+        await session.flush()
+        return execution
 
     async def execute_immediately(
         self,
@@ -176,11 +365,6 @@ class PaperTradingService:
                     raise IdempotencyConflictError("같은 멱등성 키가 다른 주문에 이미 사용됐습니다.")
                 return self._order_schema(existing, execution, security)
 
-            fill_price = money(request.limit_price if request.order_type == "limit" else quote.price)
-            gross_amount = money(fill_price * request.quantity)
-            fee = money(gross_amount * self.fee_rate)
-            current_cash = await self._cash_balance(session, account.id, quote.currency)
-
             security = await session.get(Security, quote.symbol)
             if security is None:
                 security = Security(
@@ -195,26 +379,10 @@ class PaperTradingService:
                 security.name = quote.name
                 security.currency = quote.currency
 
-            position = await session.scalar(
-                select(Position)
-                .where(
-                    Position.account_id == account.id,
-                    Position.security_symbol == quote.symbol,
-                )
-                .with_for_update()
+            should_fill = request.order_type == "market" or (
+                request.limit_price is not None
+                and self._limit_is_marketable(request.side, request.limit_price, quote.price)
             )
-            held_quantity = position.quantity if position else ZERO
-
-            if request.side == "buy" and current_cash < gross_amount + fee:
-                raise InsufficientCashError(
-                    f"주문 가능 현금이 부족합니다. 필요 {gross_amount + fee} {quote.currency}, "
-                    f"보유 {current_cash} {quote.currency}"
-                )
-            if request.side == "sell" and held_quantity < request.quantity:
-                raise InsufficientPositionError(
-                    f"보유 수량이 부족합니다. 주문 {request.quantity}주, 보유 {held_quantity}주"
-                )
-
             order = PaperOrder(
                 account_id=account.id,
                 security_symbol=quote.symbol,
@@ -223,88 +391,91 @@ class PaperTradingService:
                 order_type=request.order_type,
                 quantity=request.quantity,
                 requested_price=request.limit_price,
-                status="filled",
+                status="filled" if should_fill else "accepted",
             )
             session.add(order)
             await session.flush()
-
-            realized_pnl = ZERO
-            if request.side == "buy":
-                new_quantity = held_quantity + request.quantity
-                previous_cost = held_quantity * (position.average_cost if position else ZERO)
-                new_average_cost = money((previous_cost + gross_amount) / new_quantity)
-                if position is None:
-                    position = Position(
-                        account_id=account.id,
-                        security_symbol=quote.symbol,
-                        quantity=new_quantity,
-                        average_cost=new_average_cost,
-                        realized_pnl=ZERO,
-                    )
-                    session.add(position)
-                else:
-                    position.quantity = new_quantity
-                    position.average_cost = new_average_cost
-                trade_amount = -gross_amount
-            else:
-                assert position is not None
-                realized_pnl = money((fill_price - position.average_cost) * request.quantity - fee)
-                position.quantity = held_quantity - request.quantity
-                position.realized_pnl = money(position.realized_pnl + realized_pnl)
-                trade_amount = gross_amount
-
-            execution = PaperExecution(
-                order_id=order.id,
-                quantity=request.quantity,
-                price=fill_price,
-                gross_amount=gross_amount,
-                fee=fee,
-                realized_pnl=realized_pnl,
-            )
-            session.add(execution)
-
-            balance_after_trade = money(current_cash + trade_amount)
-            session.add(
-                CashLedgerEntry(
-                    account_id=account.id,
-                    order_id=order.id,
-                    currency=quote.currency,
-                    entry_type="trade_settlement",
-                    amount=trade_amount,
-                    balance_after=balance_after_trade,
+            if not should_fill:
+                assert request.limit_price is not None
+                await self._validate_resources(
+                    session,
+                    order,
+                    quote.currency,
+                    request.limit_price,
+                    exclude_order_id=order.id,
                 )
-            )
-            final_balance = money(balance_after_trade - fee)
-            session.add(
-                CashLedgerEntry(
-                    account_id=account.id,
-                    order_id=order.id,
-                    currency=quote.currency,
-                    entry_type="commission",
-                    amount=-fee,
-                    balance_after=final_balance,
-                )
-            )
-            await session.flush()
+                await session.refresh(order)
+                return self._order_schema(order, None, security)
 
-            positions_value = await session.scalar(
-                select(func.coalesce(func.sum(Position.quantity * Position.average_cost), ZERO))
-                .join(Security, Security.symbol == Position.security_symbol)
-                .where(Position.account_id == account.id, Security.currency == quote.currency)
-            )
-            positions_value = money(Decimal(positions_value or ZERO))
-            session.add(
-                PortfolioSnapshot(
-                    account_id=account.id,
-                    currency=quote.currency,
-                    cash_value=final_balance,
-                    positions_value=positions_value,
-                    total_value=money(final_balance + positions_value),
-                )
-            )
-            await session.flush()
+            execution = await self._settle_order(session, order, quote)
             await session.refresh(order)
             await session.refresh(execution)
+            return self._order_schema(order, execution, security)
+
+    async def list_pending_order_refs(
+        self,
+        session: AsyncSession,
+        account_id: str,
+    ) -> list[tuple[UUID, str]]:
+        async with session.begin():
+            await self.ensure_demo_account(session)
+            rows = (
+                await session.execute(
+                    select(PaperOrder.id, PaperOrder.security_symbol).where(
+                        PaperOrder.account_id == account_id,
+                        PaperOrder.status == "accepted",
+                    )
+                )
+            ).all()
+            return list(rows)
+
+    async def try_fill_pending_order(
+        self,
+        session: AsyncSession,
+        order_id: UUID,
+        quote: Quote,
+    ) -> None:
+        async with session.begin():
+            order = await session.scalar(
+                select(PaperOrder).where(PaperOrder.id == order_id).with_for_update()
+            )
+            if (
+                order is None
+                or order.status != "accepted"
+                or order.requested_price is None
+                or not self._limit_is_marketable(order.side, order.requested_price, quote.price)
+            ):
+                return
+            try:
+                await self._settle_order(session, order, quote)
+            except (InsufficientCashError, InsufficientPositionError):
+                order.status = "rejected"
+                await session.flush()
+
+    async def cancel_order(
+        self,
+        session: AsyncSession,
+        account_id: str,
+        order_id: UUID,
+    ) -> PaperOrderSchema:
+        async with session.begin():
+            row = (
+                await session.execute(
+                    self._order_query()
+                    .where(PaperOrder.id == order_id, PaperOrder.account_id == account_id)
+                    .with_for_update()
+                )
+            ).one_or_none()
+            if row is None:
+                raise AccountNotFoundError("주문을 찾을 수 없습니다.")
+            order, execution, security = row
+            if order.status == "cancelled":
+                return self._order_schema(order, execution, security)
+            if order.status != "accepted":
+                raise InvalidOrderStateError("대기 중인 지정가 주문만 취소할 수 있습니다.")
+            order.status = "cancelled"
+            await session.flush()
+            await session.refresh(order)
             return self._order_schema(order, execution, security)
 
     async def list_accounts(self, session: AsyncSession) -> list[PaperAccountSchema]:

@@ -60,3 +60,40 @@ class CandleSeries(BaseModel):
     source: Literal["mock", "kis"]
     candles: list[Candle]
     as_of: datetime
+
+
+class OrderBookLevel(BaseModel):
+    price: Decimal
+    quantity: Decimal
+
+
+class OrderBook(BaseModel):
+    symbol: str
+    currency: Literal["KRW", "USD"]
+    asks: list[OrderBookLevel]
+    bids: list[OrderBookLevel]
+    total_ask_quantity: Decimal
+    total_bid_quantity: Decimal
+    source: Literal["mock", "kis"]
+    delayed: bool = True
+    as_of: datetime
+
+
+class SecurityOverview(BaseModel):
+    symbol: str
+    name: str
+    market: str
+    asset_type: Literal["stock", "etf", "etn", "index", "other"]
+    currency: Literal["KRW", "USD"]
+    open: Decimal | None = None
+    high: Decimal | None = None
+    low: Decimal | None = None
+    volume: Decimal | None = None
+    week_52_high: Decimal | None = None
+    week_52_low: Decimal | None = None
+    per: Decimal | None = None
+    pbr: Decimal | None = None
+    eps: Decimal | None = None
+    bps: Decimal | None = None
+    source: Literal["mock", "kis"]
+    as_of: datetime

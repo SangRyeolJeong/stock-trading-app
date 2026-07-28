@@ -63,15 +63,23 @@ app/
 - `GET /api/v1/paper/positions`
 - `GET /api/v1/portfolios/summary`
 - `POST /api/v1/paper/orders`
+- `DELETE /api/v1/paper/orders/{order_id}`
 
-시장가 주문은 데모 시세로 즉시 체결합니다. 지정가 주문도 현재 단계에서는 요청
-가격으로 즉시 체결하며, 수수료율은 `PAPER_FEE_RATE`로 설정합니다. 계좌 잠금부터
-현금·수량 검증, 주문, 체결, 현금 원장, 포지션과 스냅샷 기록까지 하나의 DB
-트랜잭션으로 처리합니다.
+시장가 주문은 현재 시세로 즉시 체결합니다. 지정가는 매수 시 현재가 이하,
+매도 시 현재가 이상이라는 가격 제한을 지키며, 조건이 충족되지 않으면 대기합니다.
+주문 목록 조회 시 최신 시세와 대기 주문을 다시 대조하고 조건이 충족되면 현재
+시세로 체결합니다. 대기 주문은 취소할 수 있고, 현금과 보유 수량은 다른 대기
+주문에 예약된 금액·수량까지 반영해 검증합니다. 수수료율은 `PAPER_FEE_RATE`로
+설정하며, 체결 시 주문·현금 원장·포지션·스냅샷을 하나의 DB 트랜잭션으로
+처리합니다.
 
 ## 시장 데이터 API
 
 - `GET /api/v1/markets/quotes/{symbol}`
+- `GET /api/v1/markets/instruments`
+- `GET /api/v1/markets/candles/{symbol}`
+- `GET /api/v1/markets/orderbooks/{symbol}`
+- `GET /api/v1/markets/overview/{symbol}`
 - `GET /api/v1/markets/exchange-rates/{base_currency}/{quote_currency}`
 - `WS /api/v1/markets/ws/quotes/{symbol}`
 
@@ -81,6 +89,14 @@ KIS 모드의 국내 현재가는 `FHKST01010100`, 해외 현재가는
 USD이며, 해외 종목의 기본 거래소는 `KIS_DEFAULT_OVERSEAS_EXCHANGE`로
 설정합니다. REST 기반 WebSocket 브리지는 호출 제한을 고려해 5초마다
 갱신합니다.
+
+종목 검색은 KIS가 배포하는 국내·미국 종목 마스터를 로컬 캐시하며, 마스터
+다운로드가 실패하면 기본 종목 목록으로 폴백합니다. 일봉은 국내
+`FHKST03010100`, 해외 `HHDFS76240000`을 사용합니다. 호가는 국내
+`FHKST01010200`의 10단계 호가와 해외 `HHDFS76200100`의 최우선 1호가를
+공통 응답으로 정규화합니다. 호가 REST 응답은 실시간 스트림이 아닌 조회 시점
+스냅샷입니다. 기업정보는 같은 현재가 응답에서 시가·고가·저가·거래량,
+52주 범위와 PER·PBR·EPS·BPS를 국내외 공통 필드로 제공합니다.
 
 ## 절세 계산 API
 

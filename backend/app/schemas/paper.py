@@ -32,17 +32,18 @@ class PaperOrder(BaseModel):
     id: UUID
     account_id: str
     idempotency_key: str
-    status: Literal["accepted", "filled", "rejected"]
+    status: Literal["accepted", "filled", "rejected", "cancelled"]
     symbol: str
     name: str
     currency: Currency
     side: OrderSide
     order_type: Literal["market", "limit"]
     quantity: Decimal
-    filled_price: Decimal
-    gross_amount: Decimal
-    fee: Decimal
-    realized_pnl: Decimal
+    limit_price: Decimal | None
+    filled_price: Decimal | None
+    gross_amount: Decimal | None
+    fee: Decimal | None
+    realized_pnl: Decimal | None
     created_at: datetime
 
 

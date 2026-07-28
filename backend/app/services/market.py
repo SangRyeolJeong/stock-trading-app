@@ -9,7 +9,15 @@ from zoneinfo import ZoneInfo
 from app.core.config import Settings, get_settings
 from app.core.exceptions import MarketDataError
 from app.integrations.kis.client import KisClient
-from app.schemas.market import Candle, CandleSeries, ExchangeRate, Quote
+from app.schemas.market import (
+    Candle,
+    CandleSeries,
+    ExchangeRate,
+    OrderBook,
+    OrderBookLevel,
+    Quote,
+    SecurityOverview,
+)
 from app.services.instruments import InstrumentCatalog
 
 T = TypeVar("T")
@@ -19,6 +27,8 @@ class MarketDataProvider(Protocol):
     async def get_quote(self, symbol: str) -> Quote | None: ...
     async def get_exchange_rate(self, base_currency: str, quote_currency: str) -> ExchangeRate | None: ...
     async def get_candles(self, symbol: str, limit: int = 120) -> CandleSeries | None: ...
+    async def get_orderbook(self, symbol: str) -> OrderBook | None: ...
+    async def get_overview(self, symbol: str) -> SecurityOverview | None: ...
     async def subscribe_quotes(self, symbol: str) -> AsyncIterator[dict[str, object]]: ...
 
 
@@ -141,6 +151,63 @@ class MockMarketDataProvider:
             return None
         return _mock_candles(quote.symbol, quote.price, quote.currency, limit)
 
+    async def get_orderbook(self, symbol: str) -> OrderBook | None:
+        quote = await self.get_quote(symbol)
+        if quote is None:
+            return None
+        step = Decimal("10") if quote.currency == "KRW" else Decimal("0.01")
+        rng = random.Random(f"orderbook:{quote.symbol}")
+        asks = [
+            OrderBookLevel(
+                price=quote.price + step * level,
+                quantity=Decimal(rng.randint(80, 2400)),
+            )
+            for level in range(1, 6)
+        ]
+        bids = [
+            OrderBookLevel(
+                price=max(step, quote.price - step * level),
+                quantity=Decimal(rng.randint(80, 2400)),
+            )
+            for level in range(1, 6)
+        ]
+        return OrderBook(
+            symbol=quote.symbol,
+            currency=quote.currency,
+            asks=asks,
+            bids=bids,
+            total_ask_quantity=sum((level.quantity for level in asks), Decimal("0")),
+            total_bid_quantity=sum((level.quantity for level in bids), Decimal("0")),
+            source="mock",
+            delayed=True,
+            as_of=datetime.now(UTC),
+        )
+
+    async def get_overview(self, symbol: str) -> SecurityOverview | None:
+        quote = await self.get_quote(symbol)
+        if quote is None:
+            return None
+        is_domestic = quote.currency == "KRW"
+        return SecurityOverview(
+            symbol=quote.symbol,
+            name=quote.name,
+            market="KRX" if is_domestic else "NASDAQ",
+            asset_type="etf" if quote.symbol in {"QQQM", "360750"} else "stock",
+            currency=quote.currency,
+            open=quote.price - quote.change / Decimal("2"),
+            high=quote.price * Decimal("1.015"),
+            low=quote.price * Decimal("0.985"),
+            volume=Decimal("1250000"),
+            week_52_high=quote.price * Decimal("1.24"),
+            week_52_low=quote.price * Decimal("0.72"),
+            per=None if quote.symbol in {"QQQM", "360750"} else Decimal("24.8"),
+            pbr=None if quote.symbol in {"QQQM", "360750"} else Decimal("3.2"),
+            eps=None if quote.symbol in {"QQQM", "360750"} else quote.price / Decimal("24.8"),
+            bps=None if quote.symbol in {"QQQM", "360750"} else quote.price / Decimal("3.2"),
+            source="mock",
+            as_of=datetime.now(UTC),
+        )
+
     async def subscribe_quotes(self, symbol: str) -> AsyncIterator[dict[str, object]]:
         quote = self._quotes[symbol]
         price = float(quote.price)
@@ -175,6 +242,39 @@ def _output(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(output, dict):
         raise MarketDataError("KIS 시세 응답에 output이 없습니다.")
     return output
+
+
+def _object_output(payload: dict[str, Any], key: str) -> dict[str, Any]:
+    output = payload.get(key)
+    if isinstance(output, list):
+        output = output[0] if output else None
+    if not isinstance(output, dict):
+        raise MarketDataError(f"KIS 시세 응답에 {key}가 없습니다.")
+    return output
+
+
+def _first_decimal(output: dict[str, Any], keys: tuple[str, ...]) -> Decimal:
+    for key in keys:
+        if key not in output or output[key] in ("", None):
+            continue
+        try:
+            return Decimal(str(output[key]).replace(",", ""))
+        except (InvalidOperation, TypeError):
+            continue
+    raise MarketDataError(f"KIS 응답에 유효한 {'/'.join(keys)} 값이 없습니다.")
+
+
+def _optional_decimal(output: dict[str, Any], *keys: str) -> Decimal | None:
+    for key in keys:
+        value = output.get(key)
+        if value in ("", None):
+            continue
+        try:
+            parsed = Decimal(str(value).replace(",", ""))
+        except (InvalidOperation, TypeError):
+            continue
+        return parsed if parsed != 0 else None
+    return None
 
 
 def _output_rows(payload: dict[str, Any], key: str = "output2") -> list[dict[str, Any]]:
@@ -345,6 +445,104 @@ class KisMarketDataProvider:
             as_of=datetime.now(UTC),
         )
 
+    async def get_orderbook(self, symbol: str) -> OrderBook | None:
+        normalized, _, exchange = self._identity(symbol)
+        if not normalized:
+            return None
+        now = datetime.now(UTC)
+        if exchange == "KRX":
+            output = _object_output(await self._client.get_domestic_orderbook(normalized), "output1")
+            asks: list[OrderBookLevel] = []
+            bids: list[OrderBookLevel] = []
+            for level in range(1, 11):
+                ask_price = _decimal(output, f"askp{level}")
+                ask_quantity = _decimal(output, f"askp_rsqn{level}")
+                bid_price = _decimal(output, f"bidp{level}")
+                bid_quantity = _decimal(output, f"bidp_rsqn{level}")
+                if ask_price > 0:
+                    asks.append(OrderBookLevel(price=ask_price, quantity=max(ask_quantity, Decimal("0"))))
+                if bid_price > 0:
+                    bids.append(OrderBookLevel(price=bid_price, quantity=max(bid_quantity, Decimal("0"))))
+            return OrderBook(
+                symbol=normalized,
+                currency="KRW",
+                asks=asks,
+                bids=bids,
+                total_ask_quantity=_decimal(output, "total_askp_rsqn"),
+                total_bid_quantity=_decimal(output, "total_bidp_rsqn"),
+                source="kis",
+                delayed=False,
+                as_of=now,
+            )
+
+        output = _object_output(await self._client.get_overseas_orderbook(normalized, exchange), "output1")
+        ask_price = _first_decimal(output, ("pask", "askp", "ask"))
+        bid_price = _first_decimal(output, ("pbid", "bidp", "bid"))
+        ask_quantity = _first_decimal(output, ("vask", "askp_rsqn1", "ask_qty"))
+        bid_quantity = _first_decimal(output, ("vbid", "bidp_rsqn1", "bid_qty"))
+        asks = [OrderBookLevel(price=ask_price, quantity=max(ask_quantity, Decimal("0")))] if ask_price > 0 else []
+        bids = [OrderBookLevel(price=bid_price, quantity=max(bid_quantity, Decimal("0")))] if bid_price > 0 else []
+        return OrderBook(
+            symbol=normalized,
+            currency="USD",
+            asks=asks,
+            bids=bids,
+            total_ask_quantity=sum((level.quantity for level in asks), Decimal("0")),
+            total_bid_quantity=sum((level.quantity for level in bids), Decimal("0")),
+            source="kis",
+            delayed=False,
+            as_of=now,
+        )
+
+    async def get_overview(self, symbol: str) -> SecurityOverview | None:
+        normalized, name, exchange = self._identity(symbol)
+        if not normalized:
+            return None
+        instrument = self._catalog.resolve(normalized)
+        asset_type = instrument.asset_type if instrument else "other"
+        market = instrument.market if instrument else exchange
+        if exchange == "KRX":
+            output = _output(await self._client.get_domestic_quote(normalized))
+            return SecurityOverview(
+                symbol=normalized,
+                name=name,
+                market=market,
+                asset_type=asset_type,
+                currency="KRW",
+                open=_optional_decimal(output, "stck_oprc"),
+                high=_optional_decimal(output, "stck_hgpr"),
+                low=_optional_decimal(output, "stck_lwpr"),
+                volume=_optional_decimal(output, "acml_vol"),
+                week_52_high=_optional_decimal(output, "w52_hgpr"),
+                week_52_low=_optional_decimal(output, "w52_lwpr"),
+                per=_optional_decimal(output, "per"),
+                pbr=_optional_decimal(output, "pbr"),
+                eps=_optional_decimal(output, "eps"),
+                bps=_optional_decimal(output, "bps"),
+                source="kis",
+                as_of=datetime.now(UTC),
+            )
+        output = _output(await self._client.get_overseas_quote(normalized, exchange))
+        return SecurityOverview(
+            symbol=normalized,
+            name=name,
+            market=market,
+            asset_type=asset_type,
+            currency="USD",
+            open=_optional_decimal(output, "open"),
+            high=_optional_decimal(output, "high"),
+            low=_optional_decimal(output, "low"),
+            volume=_optional_decimal(output, "tvol"),
+            week_52_high=_optional_decimal(output, "h52p"),
+            week_52_low=_optional_decimal(output, "l52p"),
+            per=_optional_decimal(output, "perx"),
+            pbr=_optional_decimal(output, "pbrx"),
+            eps=_optional_decimal(output, "epsx"),
+            bps=_optional_decimal(output, "bpsx"),
+            source="kis",
+            as_of=datetime.now(UTC),
+        )
+
     async def subscribe_quotes(self, symbol: str) -> AsyncIterator[dict[str, object]]:
         while True:
             quote = await self.get_quote(symbol)
@@ -403,6 +601,22 @@ class CachedMarketDataProvider:
             f"candles:{normalized}:{limit}",
             self._settings.market_chart_cache_seconds,
             lambda: self._provider.get_candles(normalized, limit),
+        )
+
+    async def get_orderbook(self, symbol: str) -> OrderBook | None:
+        normalized = symbol.strip().upper()
+        return await self._cached(
+            f"orderbook:{normalized}",
+            self._settings.market_quote_cache_seconds,
+            lambda: self._provider.get_orderbook(normalized),
+        )
+
+    async def get_overview(self, symbol: str) -> SecurityOverview | None:
+        normalized = symbol.strip().upper()
+        return await self._cached(
+            f"overview:{normalized}",
+            self._settings.market_quote_cache_seconds,
+            lambda: self._provider.get_overview(normalized),
         )
 
     async def subscribe_quotes(self, symbol: str) -> AsyncIterator[dict[str, object]]:

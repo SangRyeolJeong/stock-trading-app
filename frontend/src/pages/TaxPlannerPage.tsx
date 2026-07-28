@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
+import { updateUserPreferences, useUserPreferences } from '../data/userPreferences';
 import { taxApi } from '../services/taxApi';
 import type { TaxAccountType } from '../types/api';
 
@@ -27,12 +28,13 @@ function formatCompactWon(value: string | number) {
 }
 
 export function TaxPlannerPage() {
-  const [annualSalary, setAnnualSalary] = useState(45_000_000);
+  const preferences = useUserPreferences();
   const [selected, setSelected] = useState<TaxAccountType>('pension');
-  const [years, setYears] = useState(30);
-  const [monthlyContribution, setMonthlyContribution] = useState(500_000);
-  const [returnRate, setReturnRate] = useState(7);
-  const [withdrawalAge, setWithdrawalAge] = useState(60);
+  const annualSalary = preferences.annualSalaryKrw;
+  const years = preferences.investmentYears;
+  const monthlyContribution = preferences.monthlyInvestmentKrw;
+  const returnRate = preferences.annualReturnRatePct;
+  const withdrawalAge = preferences.withdrawalAge;
   const simulationQuery = useQuery({
     queryKey: [
       'tax-simulation',
@@ -66,19 +68,19 @@ export function TaxPlannerPage() {
       </section>
       <section className="tax-grid">
         <article className="card planner-form">
-          <div className="step-title"><span>1</span><div><strong>투자 조건을 알려주세요</strong><p>입력값은 저장되지 않고 계산에만 사용됩니다.</p></div></div>
+          <div className="step-title"><span>1</span><div><strong>투자 조건을 알려주세요</strong><p>입력값은 내 설정에 자동 저장됩니다.</p></div></div>
           <label>연간 총급여</label>
-          <div className="option-grid three">{incomeOptions.map((item) => <button className={annualSalary === item.value ? 'active' : ''} key={item.value} onClick={() => setAnnualSalary(item.value)}>{item.label}<Icon name="check" size={15} /></button>)}</div>
+          <div className="option-grid three">{incomeOptions.map((item) => <button className={annualSalary === item.value ? 'active' : ''} key={item.value} onClick={() => updateUserPreferences({ annualSalaryKrw: item.value })}>{item.label}<Icon name="check" size={15} /></button>)}</div>
           <label>예상 투자 기간</label>
           <div className="slider-label"><strong>{years}년</strong><span>{years >= 10 ? '장기투자' : '중기투자'}</span></div>
-          <input className="range-input" type="range" min="3" max="40" value={years} onChange={(event) => setYears(Number(event.target.value))} />
+          <input className="range-input" type="range" min="3" max="40" value={years} onChange={(event) => updateUserPreferences({ investmentYears: Number(event.target.value) })} />
           <div className="range-ends"><span>3년</span><span>40년</span></div>
           <label>월 투자금</label>
-          <div className="money-input"><span>₩</span><input type="number" min="10000" step="10000" value={monthlyContribution} onChange={(event) => setMonthlyContribution(Math.max(0, Number(event.target.value)))} /><em>원</em></div>
+          <div className="money-input"><span>₩</span><input type="number" min="10000" step="10000" value={monthlyContribution} onChange={(event) => updateUserPreferences({ monthlyInvestmentKrw: Number(event.target.value) })} /><em>원</em></div>
           <label>연 예상 수익률</label>
-          <div className="option-grid three">{[4, 7, 10].map((rate) => <button className={returnRate === rate ? 'active' : ''} key={rate} onClick={() => setReturnRate(rate)}>{rate}%<Icon name="check" size={15} /></button>)}</div>
+          <div className="option-grid three">{[4, 7, 10].map((rate) => <button className={returnRate === rate ? 'active' : ''} key={rate} onClick={() => updateUserPreferences({ annualReturnRatePct: rate })}>{rate}%<Icon name="check" size={15} /></button>)}</div>
           <label>연금 수령 시작 나이</label>
-          <div className="option-grid three">{[60, 70, 80].map((age) => <button className={withdrawalAge === age ? 'active' : ''} key={age} onClick={() => setWithdrawalAge(age)}>{age}세<Icon name="check" size={15} /></button>)}</div>
+          <div className="option-grid three">{[60, 70, 80].map((age) => <button className={withdrawalAge === age ? 'active' : ''} key={age} onClick={() => updateUserPreferences({ withdrawalAge: age })}>{age}세<Icon name="check" size={15} /></button>)}</div>
           <div className="form-note"><Icon name="shield" size={17} /><p>수수료·환율 변동 없이 매년 말 납입하고 마지막 해에 처분하는 비교입니다.</p></div>
         </article>
 

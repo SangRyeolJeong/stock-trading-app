@@ -28,4 +28,10 @@ export const paperApi = {
       body: JSON.stringify(order),
     });
   },
+  cancelOrder(orderId: string, accountId = 'demo-account') {
+    return apiClient<PaperOrder>(
+      `/api/v1/paper/orders/${encodeURIComponent(orderId)}?account_id=${encodeURIComponent(accountId)}`,
+      { method: 'DELETE' },
+    );
+  },
 };

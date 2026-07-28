@@ -1,6 +1,11 @@
+from datetime import UTC, datetime
+from decimal import Decimal
+
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.schemas.market import Quote
+from app.services.market import market_data_service
 
 client = TestClient(app)
 
@@ -65,15 +70,29 @@ def test_sell_is_rejected_when_quantity_exceeds_position() -> None:
     assert "보유 수량이 부족" in response.json()["detail"]
 
 
-def test_weighted_average_cost_and_average_is_unchanged_after_sell() -> None:
+def test_weighted_average_cost_and_average_is_unchanged_after_sell(monkeypatch) -> None:
+    prices = iter((Decimal("200"), Decimal("240"), Decimal("250")))
+
+    async def changing_quote(symbol: str) -> Quote:
+        price = next(prices)
+        return Quote(
+            symbol=symbol,
+            name="인베스코 나스닥 100 ETF",
+            currency="USD",
+            price=price,
+            change=Decimal("0"),
+            change_rate=Decimal("0"),
+            market_open=True,
+            as_of=datetime.now(UTC),
+        )
+
+    monkeypatch.setattr(market_data_service, "get_quote", changing_quote)
     first = base_order()
-    first.update({"quantity": 2, "order_type": "limit", "limit_price": "200"})
+    first.update({"quantity": 2})
     second = base_order()
     second.update(
         {
             "quantity": 2,
-            "order_type": "limit",
-            "limit_price": "240",
             "idempotency_key": "test-order-0002",
         }
     )
@@ -82,8 +101,6 @@ def test_weighted_average_cost_and_average_is_unchanged_after_sell() -> None:
         {
             "side": "sell",
             "quantity": 1,
-            "order_type": "limit",
-            "limit_price": "250",
             "idempotency_key": "test-order-0003",
         }
     )
@@ -99,6 +116,75 @@ def test_weighted_average_cost_and_average_is_unchanged_after_sell() -> None:
     assert after_sell["quantity"] == "3.00000000"
     assert after_sell["average_cost"] == before_sell["average_cost"]
     assert sell_response.json()["realized_pnl"] == "29.75000000"
+
+
+def test_unmarketable_limit_order_waits_without_changing_cash_or_positions() -> None:
+    payload = base_order()
+    payload.update({"order_type": "limit", "limit_price": "200"})
+
+    before_cash = client.get("/api/v1/paper/accounts").json()[0]["cash_balances"]
+    response = client.post("/api/v1/paper/orders", json=payload)
+    after_cash = client.get("/api/v1/paper/accounts").json()[0]["cash_balances"]
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "accepted"
+    assert response.json()["limit_price"] == "200.00000000"
+    assert response.json()["filled_price"] is None
+    assert before_cash == after_cash
+    assert client.get("/api/v1/paper/positions").json() == []
+
+
+def test_pending_limit_order_fills_when_market_reaches_limit(monkeypatch) -> None:
+    payload = base_order()
+    payload.update({"order_type": "limit", "limit_price": "200"})
+    assert client.post("/api/v1/paper/orders", json=payload).json()["status"] == "accepted"
+
+    async def reached_quote(symbol: str) -> Quote:
+        return Quote(
+            symbol=symbol,
+            name="인베스코 나스닥 100 ETF",
+            currency="USD",
+            price=Decimal("199"),
+            change=Decimal("0"),
+            change_rate=Decimal("0"),
+            market_open=True,
+            as_of=datetime.now(UTC),
+        )
+
+    monkeypatch.setattr(market_data_service, "get_quote", reached_quote)
+    order = client.get("/api/v1/paper/orders").json()[0]
+
+    assert order["status"] == "filled"
+    assert order["filled_price"] == "199.00000000"
+    assert client.get("/api/v1/paper/positions").json()[0]["quantity"] == "1.00000000"
+
+
+def test_pending_limit_order_can_be_cancelled() -> None:
+    payload = base_order()
+    payload.update({"order_type": "limit", "limit_price": "200"})
+    order = client.post("/api/v1/paper/orders", json=payload).json()
+
+    response = client.delete(f"/api/v1/paper/orders/{order['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+    assert client.get("/api/v1/paper/orders").json()[0]["status"] == "cancelled"
+
+
+def test_pending_buy_reserves_cash_until_cancelled() -> None:
+    pending = base_order()
+    pending.update({"order_type": "limit", "limit_price": "200", "quantity": 40})
+    accepted = client.post("/api/v1/paper/orders", json=pending).json()
+    assert accepted["status"] == "accepted"
+
+    market = base_order()
+    market.update({"quantity": 9, "idempotency_key": "test-order-market-after-reserve"})
+    blocked = client.post("/api/v1/paper/orders", json=market)
+    assert blocked.status_code == 422
+    assert "가용" in blocked.json()["detail"]
+
+    assert client.delete(f"/api/v1/paper/orders/{accepted['id']}").status_code == 200
+    assert client.post("/api/v1/paper/orders", json=market).status_code == 201
 
 
 def test_idempotency_key_does_not_duplicate_order_or_ledger_effects() -> None:
@@ -131,7 +217,7 @@ def test_reusing_idempotency_key_for_different_order_is_rejected() -> None:
 
 def test_portfolio_summary_uses_ledger_positions_and_cash() -> None:
     payload = base_order()
-    payload.update({"quantity": 2, "order_type": "limit", "limit_price": "200"})
+    payload.update({"quantity": 2})
     assert client.post("/api/v1/paper/orders", json=payload).status_code == 201
 
     response = client.get("/api/v1/portfolios/summary")
@@ -141,5 +227,5 @@ def test_portfolio_summary_uses_ledger_positions_and_cash() -> None:
     usd = next(item for item in summary["currencies"] if item["currency"] == "USD")
     assert summary["positions"][0]["symbol"] == "QQQM"
     assert summary["positions"][0]["quantity"] == "2.00000000"
-    assert usd["cash"] == "9599.60000000"
+    assert usd["cash"] == "9536.09656000"
     assert usd["positions_value"] == "463.44000000"

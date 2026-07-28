@@ -1,15 +1,15 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
+import { updateUserPreferences, useUserPreferences } from '../data/userPreferences';
 import { strategyApi } from '../services/strategyApi';
 import type { StrategyRequest } from '../types/api';
 
 const goalOptions = [
-  { label: '30년 장기투자', value: 'retirement', years: 30, icon: 'clock' },
-  { label: '10년 목돈 마련', value: 'lump_sum', years: 10, icon: 'target' },
-  { label: '배당 현금흐름', value: 'cashflow', years: 15, icon: 'wallet' },
+  { label: '장기 은퇴 준비', value: 'retirement', icon: 'clock' },
+  { label: '목돈 마련', value: 'lump_sum', icon: 'target' },
+  { label: '배당 현금흐름', value: 'cashflow', icon: 'wallet' },
 ] as const;
 
 const riskOptions = [
@@ -30,17 +30,18 @@ const formatWon = (value: number) => `${new Intl.NumberFormat('ko-KR').format(va
 
 export function StrategyPage() {
   const navigate = useNavigate();
-  const [goal, setGoal] = useState<StrategyRequest['goal']>('retirement');
-  const [risk, setRisk] = useState<StrategyRequest['risk_profile']>('growth');
-  const [liquidityPreference, setLiquidityPreference] = useState(true);
-  const [feeSensitivity, setFeeSensitivity] = useState(true);
-  const [incomePreference, setIncomePreference] = useState(false);
+  const preferences = useUserPreferences();
+  const goal = preferences.strategyGoal;
+  const risk = preferences.riskProfile;
+  const liquidityPreference = preferences.liquidityPreference;
+  const feeSensitivity = preferences.feeSensitivity;
+  const incomePreference = preferences.incomePreference;
   const selectedGoal = goalOptions.find((option) => option.value === goal) ?? goalOptions[0];
   const selectedRisk = riskOptions.find((option) => option.value === risk) ?? riskOptions[2];
   const request: StrategyRequest = {
     goal,
-    horizon_years: selectedGoal.years,
-    monthly_amount_krw: 500_000,
+    horizon_years: preferences.investmentYears,
+    monthly_amount_krw: preferences.monthlyInvestmentKrw,
     risk_profile: risk,
     liquidity_preference: liquidityPreference,
     fee_sensitivity: feeSensitivity,
@@ -91,7 +92,7 @@ export function StrategyPage() {
               <button
                 key={option.value}
                 className={goal === option.value ? 'active' : ''}
-                onClick={() => setGoal(option.value)}
+                onClick={() => updateUserPreferences({ strategyGoal: option.value })}
               >
                 <span>
                   <Icon name={option.icon} size={19} />
@@ -107,11 +108,41 @@ export function StrategyPage() {
               <button
                 key={option.value}
                 className={risk === option.value ? 'active' : ''}
-                onClick={() => setRisk(option.value)}
+                onClick={() => updateUserPreferences({ riskProfile: option.value })}
               >
                 {option.label}
               </button>
             ))}
+          </div>
+          <label>예상 투자 기간</label>
+          <div className="slider-label">
+            <strong>{preferences.investmentYears}년</strong>
+            <span>{preferences.investmentYears >= 10 ? '장기투자' : '중기투자'}</span>
+          </div>
+          <input
+            className="range-input"
+            type="range"
+            min="3"
+            max="40"
+            value={preferences.investmentYears}
+            onChange={(event) => updateUserPreferences({
+              investmentYears: Number(event.target.value),
+            })}
+          />
+          <div className="range-ends"><span>3년</span><span>40년</span></div>
+          <label>월 투자금</label>
+          <div className="money-input">
+            <span>₩</span>
+            <input
+              type="number"
+              min="10000"
+              step="10000"
+              value={preferences.monthlyInvestmentKrw}
+              onChange={(event) => updateUserPreferences({
+                monthlyInvestmentKrw: Number(event.target.value),
+              })}
+            />
+            <em>원</em>
           </div>
           <label>선호하는 조건</label>
           <div className="check-list">
@@ -119,7 +150,9 @@ export function StrategyPage() {
               <input
                 type="checkbox"
                 checked={liquidityPreference}
-                onChange={(event) => setLiquidityPreference(event.target.checked)}
+                onChange={(event) => updateUserPreferences({
+                  liquidityPreference: event.target.checked,
+                })}
               />
               <span><Icon name="check" size={13} /></span>
               언제든 사용할 수 있는 유동성
@@ -128,7 +161,9 @@ export function StrategyPage() {
               <input
                 type="checkbox"
                 checked={feeSensitivity}
-                onChange={(event) => setFeeSensitivity(event.target.checked)}
+                onChange={(event) => updateUserPreferences({
+                  feeSensitivity: event.target.checked,
+                })}
               />
               <span><Icon name="check" size={13} /></span>
               낮은 운용보수
@@ -137,7 +172,9 @@ export function StrategyPage() {
               <input
                 type="checkbox"
                 checked={incomePreference}
-                onChange={(event) => setIncomePreference(event.target.checked)}
+                onChange={(event) => updateUserPreferences({
+                  incomePreference: event.target.checked,
+                })}
               />
               <span><Icon name="check" size={13} /></span>
               배당·분배금 비중 확대
@@ -151,7 +188,7 @@ export function StrategyPage() {
               <span className="ai-badge">
                 <Icon name="sparkles" size={15} /> 구조화된 규칙 기반 추천
               </span>
-              <h2>{selectedGoal.label} · {selectedRisk.label}</h2>
+              <h2>{selectedGoal.label} · {preferences.investmentYears}년 · {selectedRisk.label}</h2>
             </div>
             {recommendation && (
               <span className="fit-score">

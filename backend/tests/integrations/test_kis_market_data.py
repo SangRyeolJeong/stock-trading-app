@@ -164,3 +164,114 @@ async def test_kis_provider_maps_daily_candles() -> None:
     assert domestic.candles[-1].close == Decimal("82400")
     assert overseas is not None
     assert overseas.candles[0].close == Decimal("222.00")
+
+
+@pytest.mark.asyncio
+async def test_kis_provider_maps_domestic_and_overseas_orderbooks() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth2/tokenP":
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        if request.url.path.endswith("/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"):
+            assert request.headers["tr_id"] == "FHKST01010200"
+            assert request.url.params["FID_INPUT_ISCD"] == "005930"
+            output = {
+                "total_askp_rsqn": "5500",
+                "total_bidp_rsqn": "6500",
+            }
+            for level in range(1, 11):
+                output[f"askp{level}"] = str(82400 + level * 100)
+                output[f"askp_rsqn{level}"] = str(level * 100)
+                output[f"bidp{level}"] = str(82400 - level * 100)
+                output[f"bidp_rsqn{level}"] = str(level * 120)
+            return httpx.Response(200, json={"rt_cd": "0", "output1": output})
+        if request.url.path.endswith("/overseas-price/v1/quotations/inquire-asking-price"):
+            assert request.headers["tr_id"] == "HHDFS76200100"
+            assert request.url.params["EXCD"] == "NAS"
+            return httpx.Response(
+                200,
+                json={
+                    "rt_cd": "0",
+                    "output1": {
+                        "pask": "219.32",
+                        "pbid": "219.30",
+                        "vask": "120",
+                        "vbid": "95",
+                    },
+                },
+            )
+        raise AssertionError(f"Unexpected request: {request.url}")
+
+    client = KisClient(kis_settings(), transport=httpx.MockTransport(handler))
+    provider = KisMarketDataProvider(kis_settings(), client)
+
+    domestic = await provider.get_orderbook("005930")
+    overseas = await provider.get_orderbook("AAPL")
+
+    assert domestic is not None
+    assert len(domestic.asks) == len(domestic.bids) == 10
+    assert domestic.asks[0].price == Decimal("82500")
+    assert domestic.bids[0].price == Decimal("82300")
+    assert domestic.total_ask_quantity == Decimal("5500")
+    assert overseas is not None
+    assert overseas.asks[0].price == Decimal("219.32")
+    assert overseas.bids[0].quantity == Decimal("95")
+
+
+@pytest.mark.asyncio
+async def test_kis_provider_maps_security_overview_metrics() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth2/tokenP":
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        if request.url.path.endswith("/domestic-stock/v1/quotations/inquire-price"):
+            return httpx.Response(
+                200,
+                json={
+                    "rt_cd": "0",
+                    "output": {
+                        "stck_oprc": "82000",
+                        "stck_hgpr": "83000",
+                        "stck_lwpr": "81000",
+                        "acml_vol": "1234567",
+                        "w52_hgpr": "90000",
+                        "w52_lwpr": "60000",
+                        "per": "18.5",
+                        "pbr": "1.7",
+                        "eps": "4454.05",
+                        "bps": "48470.59",
+                    },
+                },
+            )
+        if request.url.path.endswith("/overseas-price/v1/quotations/price"):
+            return httpx.Response(
+                200,
+                json={
+                    "rt_cd": "0",
+                    "output": {
+                        "open": "218.00",
+                        "high": "221.50",
+                        "low": "217.20",
+                        "tvol": "987654",
+                        "h52p": "260.10",
+                        "l52p": "169.21",
+                        "perx": "31.4",
+                        "pbrx": "45.2",
+                        "epsx": "6.98",
+                        "bpsx": "4.85",
+                    },
+                },
+            )
+        raise AssertionError(f"Unexpected request: {request.url}")
+
+    client = KisClient(kis_settings(), transport=httpx.MockTransport(handler))
+    provider = KisMarketDataProvider(kis_settings(), client)
+
+    domestic = await provider.get_overview("005930")
+    overseas = await provider.get_overview("AAPL")
+
+    assert domestic is not None
+    assert domestic.volume == Decimal("1234567")
+    assert domestic.per == Decimal("18.5")
+    assert domestic.week_52_high == Decimal("90000")
+    assert overseas is not None
+    assert overseas.pbr == Decimal("45.2")
+    assert overseas.week_52_low == Decimal("169.21")

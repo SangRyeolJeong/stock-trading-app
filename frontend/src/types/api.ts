@@ -55,6 +55,43 @@ export interface CandleSeries {
   as_of: string;
 }
 
+export interface OrderBookLevel {
+  price: string;
+  quantity: string;
+}
+
+export interface OrderBook {
+  symbol: string;
+  currency: 'KRW' | 'USD';
+  asks: OrderBookLevel[];
+  bids: OrderBookLevel[];
+  total_ask_quantity: string;
+  total_bid_quantity: string;
+  source: 'mock' | 'kis';
+  delayed: boolean;
+  as_of: string;
+}
+
+export interface SecurityOverview {
+  symbol: string;
+  name: string;
+  market: string;
+  asset_type: 'stock' | 'etf' | 'etn' | 'index' | 'other';
+  currency: 'KRW' | 'USD';
+  open: string | null;
+  high: string | null;
+  low: string | null;
+  volume: string | null;
+  week_52_high: string | null;
+  week_52_low: string | null;
+  per: string | null;
+  pbr: string | null;
+  eps: string | null;
+  bps: string | null;
+  source: 'mock' | 'kis';
+  as_of: string;
+}
+
 export interface PaperOrderRequest {
   symbol: string;
   side: 'buy' | 'sell';
@@ -69,17 +106,18 @@ export interface PaperOrder {
   id: string;
   account_id: string;
   idempotency_key: string;
-  status: 'accepted' | 'filled' | 'rejected';
+  status: 'accepted' | 'filled' | 'rejected' | 'cancelled';
   symbol: string;
   name: string;
   currency: 'KRW' | 'USD';
   side: 'buy' | 'sell';
   order_type: 'market' | 'limit';
   quantity: string;
-  filled_price: string;
-  gross_amount: string;
-  fee: string;
-  realized_pnl: string;
+  limit_price: string | null;
+  filled_price: string | null;
+  gross_amount: string | null;
+  fee: string | null;
+  realized_pnl: string | null;
   created_at: string;
 }
 

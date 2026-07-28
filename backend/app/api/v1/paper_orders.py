@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,11 @@ async def list_paper_orders(
     account_id: str = "demo-account",
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[PaperOrder]:
+    pending_orders = await paper_trading_service.list_pending_order_refs(session, account_id)
+    for order_id, symbol in pending_orders:
+        quote = await market_data_service.get_quote(symbol)
+        if quote is not None:
+            await paper_trading_service.try_fill_pending_order(session, order_id, quote)
     return await paper_trading_service.list_orders(session, account_id, limit)
 
 
@@ -50,6 +56,18 @@ async def create_paper_order(order: PaperOrderRequest, session: Session) -> Pape
         raise HTTPException(status_code=404, detail="시세를 찾을 수 없습니다.")
     try:
         return await paper_trading_service.execute_immediately(session, order, quote)
+    except PaperTradingError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+@router.delete("/paper/orders/{order_id}", response_model=PaperOrder)
+async def cancel_paper_order(
+    order_id: UUID,
+    session: Session,
+    account_id: str = "demo-account",
+) -> PaperOrder:
+    try:
+        return await paper_trading_service.cancel_order(session, account_id, order_id)
     except PaperTradingError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 

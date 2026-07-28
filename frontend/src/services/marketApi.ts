@@ -2,7 +2,9 @@ import type {
   CandleSeries,
   ExchangeRate,
   InstrumentSearchResponse,
+  OrderBook,
   Quote,
+  SecurityOverview,
 } from '../types/api';
 import { apiClient } from './apiClient';
 
@@ -30,6 +32,16 @@ export const marketApi = {
     return apiClient<CandleSeries>(
       `/api/v1/markets/candles/${encodeURIComponent(symbol)}?${params}`,
       { timeoutMs: 15_000 },
+    );
+  },
+  getOrderBook(symbol: string) {
+    return apiClient<OrderBook>(
+      `/api/v1/markets/orderbooks/${encodeURIComponent(symbol)}`,
+    );
+  },
+  getSecurityOverview(symbol: string) {
+    return apiClient<SecurityOverview>(
+      `/api/v1/markets/overview/${encodeURIComponent(symbol)}`,
     );
   },
 };

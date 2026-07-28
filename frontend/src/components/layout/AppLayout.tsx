@@ -12,6 +12,7 @@ const pageTitles: Record<string, string> = {
   '/strategy': 'AI 투자전략',
   '/portfolio': '내 포트폴리오',
   '/learn': '투자 지식',
+  '/settings': '내 설정',
 };
 
 export function AppLayout() {
@@ -19,7 +20,9 @@ export function AppLayout() {
   const location = useLocation();
   const title = location.pathname.startsWith('/market/')
     ? '주식'
-    : pageTitles[location.pathname] ?? 'MOA';
+    : location.pathname.startsWith('/learn/')
+      ? '투자 지식'
+      : pageTitles[location.pathname] ?? 'MOA';
 
   const contextValue = useMemo(() => ({
     showToast: (message: string) => {

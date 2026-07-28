@@ -11,21 +11,20 @@ from app.models.paper import CashLedgerEntry, PaperExecution, PaperOrder, Positi
 client = TestClient(app)
 
 
-def order(side: str, quantity: int, price: str, key: str) -> dict[str, object]:
+def order(side: str, quantity: int, key: str) -> dict[str, object]:
     return {
         "symbol": "QQQM",
         "side": side,
-        "order_type": "limit",
+        "order_type": "market",
         "quantity": quantity,
-        "limit_price": price,
         "account_id": "demo-account",
         "idempotency_key": key,
     }
 
 
 def test_order_execution_ledger_and_position_invariants() -> None:
-    assert client.post("/api/v1/paper/orders", json=order("buy", 2, "200", "invariant-buy-01")).status_code == 201
-    assert client.post("/api/v1/paper/orders", json=order("sell", 1, "250", "invariant-sell-01")).status_code == 201
+    assert client.post("/api/v1/paper/orders", json=order("buy", 2, "invariant-buy-01")).status_code == 201
+    assert client.post("/api/v1/paper/orders", json=order("sell", 1, "invariant-sell-01")).status_code == 201
 
     async def inspect() -> dict[str, object]:
         async with async_session_factory() as session:
@@ -54,8 +53,8 @@ def test_order_execution_ledger_and_position_invariants() -> None:
         "orders": 2,
         "executions": 2,
         "ledger_entries": 6,
-        "usd_cash": Decimal("9849.35000000"),
+        "usd_cash": Decimal("9767.58484000"),
         "quantity": Decimal("1.00000000"),
-        "average_cost": Decimal("200.00000000"),
-        "realized_pnl": Decimal("49.75000000"),
+        "average_cost": Decimal("231.72000000"),
+        "realized_pnl": Decimal("-0.23172000"),
     }

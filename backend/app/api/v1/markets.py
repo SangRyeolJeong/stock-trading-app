@@ -3,7 +3,14 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from app.core.exceptions import MarketDataError
-from app.schemas.market import CandleSeries, ExchangeRate, InstrumentSearchResponse, Quote
+from app.schemas.market import (
+    CandleSeries,
+    ExchangeRate,
+    InstrumentSearchResponse,
+    OrderBook,
+    Quote,
+    SecurityOverview,
+)
 from app.services.market import instrument_catalog, market_data_service
 
 router = APIRouter(prefix="/markets", tags=["markets"])
@@ -54,6 +61,28 @@ async def get_candles(
     if candles is None:
         raise HTTPException(status_code=404, detail="차트 데이터를 찾을 수 없습니다.")
     return candles
+
+
+@router.get("/orderbooks/{symbol}", response_model=OrderBook)
+async def get_orderbook(symbol: str) -> OrderBook:
+    try:
+        orderbook = await market_data_service.get_orderbook(symbol)
+    except MarketDataError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if orderbook is None:
+        raise HTTPException(status_code=404, detail="호가 데이터를 찾을 수 없습니다.")
+    return orderbook
+
+
+@router.get("/overview/{symbol}", response_model=SecurityOverview)
+async def get_security_overview(symbol: str) -> SecurityOverview:
+    try:
+        overview = await market_data_service.get_overview(symbol)
+    except MarketDataError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if overview is None:
+        raise HTTPException(status_code=404, detail="기업정보를 찾을 수 없습니다.")
+    return overview
 
 
 @router.websocket("/ws/quotes/{symbol}")

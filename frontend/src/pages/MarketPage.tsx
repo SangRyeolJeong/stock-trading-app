@@ -3,8 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../app/toast';
 import ChartSection from '../components/ChartSection';
+import CompanyOverview from '../components/CompanyOverview';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
+import OrderBook from '../components/OrderBook';
 import { useQuote } from '../hooks/useQuote';
 import { useQuoteStream } from '../hooks/useQuoteStream';
 import { marketApi, type MarketFilter } from '../services/marketApi';
@@ -67,13 +69,18 @@ function TradePanel({
   currency: 'KRW' | 'USD';
 }) {
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
-  const [orderType, setOrderType] = useState('시장가');
+  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [quantity, setQuantity] = useState(1);
+  const [limitPrice, setLimitPrice] = useState(0);
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const accountsQuery = useQuery({
     queryKey: ['paper-accounts'],
     queryFn: paperApi.getAccounts,
+  });
+  const positionsQuery = useQuery({
+    queryKey: ['paper-positions', 'demo-account'],
+    queryFn: () => paperApi.getPositions('demo-account'),
   });
   const exchangeRateQuery = useQuery({
     queryKey: ['exchange-rate', 'USD', 'KRW'],
@@ -86,32 +93,83 @@ function TradePanel({
     (balance) => balance.currency === currency,
   );
   const availableCash = Number(cashBalance?.amount ?? 0);
+  const position = positionsQuery.data?.find((item) => item.symbol === symbol);
+  const availableQuantity = Math.floor(Number(position?.quantity ?? 0));
+  const executionPrice = orderType === 'limit' ? limitPrice : price;
+  const estimatedGross = executionPrice * quantity;
+  const estimatedFee = estimatedGross * 0.001;
+  const orderError = executionPrice <= 0
+    ? '유효한 주문 가격이 필요합니다.'
+    : side === 'buy' && estimatedGross + estimatedFee > availableCash
+      ? '주문 가능 금액을 초과했습니다.'
+      : side === 'sell' && quantity > availableQuantity
+        ? '보유 수량을 초과했습니다.'
+        : '';
   const orderMutation = useMutation({
     mutationFn: paperApi.createOrder,
     onSuccess: (order) => {
-      showToast(`${order.symbol} ${order.quantity}주가 ${order.filled_price}에 모의 체결됐어요.`);
+      showToast(order.status === 'filled'
+        ? `${order.symbol} ${order.quantity}주가 ${order.filled_price}에 모의 체결됐어요.`
+        : `${order.symbol} ${order.quantity}주 지정가 주문을 접수했어요.`);
       void queryClient.invalidateQueries({ queryKey: ['paper-accounts'] });
+      void queryClient.invalidateQueries({ queryKey: ['paper-positions'] });
       void queryClient.invalidateQueries({ queryKey: ['paper-portfolio'] });
       void queryClient.invalidateQueries({ queryKey: ['paper-orders'] });
+      setQuantity(1);
     },
     onError: (error: Error) => showToast(error.message),
   });
 
-  useEffect(() => setQuantity(1), [symbol]);
+  useEffect(() => {
+    setQuantity(1);
+    setSide('buy');
+    setOrderType('market');
+    setLimitPrice(0);
+  }, [symbol]);
 
-  const setCashRatio = (ratio: number) => {
-    if (price <= 0 || side === 'sell') return;
-    setQuantity(Math.max(1, Math.floor((availableCash * ratio) / (price * 1.001))));
+  useEffect(() => {
+    if (price > 0 && limitPrice <= 0) setLimitPrice(price);
+  }, [limitPrice, price]);
+
+  const selectOrderType = (nextType: 'market' | 'limit') => {
+    setOrderType(nextType);
+    if (nextType === 'limit' && price > 0) setLimitPrice(price);
+  };
+
+  const selectSide = (nextSide: 'buy' | 'sell') => {
+    setSide(nextSide);
+    setQuantity(1);
+  };
+
+  const adjustLimitPrice = (direction: -1 | 1) => {
+    if (orderType !== 'limit') return;
+    const step = currency === 'KRW' ? 1 : 0.01;
+    const nextPrice = Math.max(step, limitPrice + step * direction);
+    setLimitPrice(currency === 'KRW' ? Math.round(nextPrice) : Number(nextPrice.toFixed(2)));
+  };
+
+  const setOrderRatio = (ratio: number) => {
+    if (side === 'sell') {
+      setQuantity(Math.max(1, Math.floor(availableQuantity * ratio)));
+      return;
+    }
+    if (executionPrice <= 0) return;
+    setQuantity(Math.max(1, Math.floor((availableCash * ratio) / (executionPrice * 1.001))));
   };
 
   const submitOrder = () => {
-    if (price <= 0) return;
+    if (orderError) {
+      showToast(orderError);
+      return;
+    }
     orderMutation.mutate({
       symbol,
       side,
-      order_type: orderType === '지정가' ? 'limit' : 'market',
+      order_type: orderType,
       quantity,
-      limit_price: orderType === '지정가' ? price.toFixed(2) : undefined,
+      limit_price: orderType === 'limit'
+        ? currency === 'KRW' ? String(Math.round(limitPrice)) : limitPrice.toFixed(2)
+        : undefined,
       account_id: 'demo-account',
       idempotency_key: crypto.randomUUID(),
     });
@@ -120,28 +178,48 @@ function TradePanel({
   return (
     <aside className="trade-panel card">
       <div className="trade-tabs">
-        <button className={side === 'buy' ? 'active buy' : ''} onClick={() => setSide('buy')}>구매</button>
-        <button className={side === 'sell' ? 'active sell' : ''} onClick={() => setSide('sell')}>판매</button>
+        <button className={side === 'buy' ? 'active buy' : ''} onClick={() => selectSide('buy')}>구매</button>
+        <button className={side === 'sell' ? 'active sell' : ''} onClick={() => selectSide('sell')}>판매</button>
       </div>
       <div className="available">
-        <span>주문 가능 금액</span>
-        <strong>{cashBalance ? formatCash(availableCash, currency) : '불러오는 중'}</strong>
+        <span>{side === 'buy' ? '주문 가능 금액' : '보유 수량'}</span>
+        <strong>
+          {side === 'buy'
+            ? cashBalance ? formatCash(availableCash, currency) : '불러오는 중'
+            : positionsQuery.isLoading ? '불러오는 중' : `${availableQuantity.toLocaleString('ko-KR')}주`}
+        </strong>
       </div>
       <label>주문 방식</label>
-      <div className="segmented">{['시장가', '지정가'].map((item) => <button key={item} className={orderType === item ? 'active' : ''} onClick={() => setOrderType(item)}>{item}</button>)}</div>
+      <div className="segmented">
+        <button className={orderType === 'market' ? 'active' : ''} onClick={() => selectOrderType('market')}>시장가</button>
+        <button className={orderType === 'limit' ? 'active' : ''} onClick={() => selectOrderType('limit')}>지정가</button>
+      </div>
       <label>주문 가격</label>
-      <div className="price-input"><button aria-label="가격 내리기">−</button><div><strong>{price > 0 ? formatCash(price, currency) : '시세 대기 중'}</strong><span>{currency === 'USD' && usdKrwRate && price > 0 ? `약 ${formatCash(price * usdKrwRate, 'KRW')}` : '현재 시세 기준'}</span></div><button aria-label="가격 올리기">＋</button></div>
+      <div className="price-input">
+        <button aria-label="가격 내리기" onClick={() => adjustLimitPrice(-1)} disabled={orderType === 'market'}>−</button>
+        <div>
+          <strong>{executionPrice > 0 ? formatCash(executionPrice, currency) : '시세 대기 중'}</strong>
+          <span>
+            {currency === 'USD' && usdKrwRate && executionPrice > 0
+              ? `약 ${formatCash(executionPrice * usdKrwRate, 'KRW')}`
+              : orderType === 'market' ? '현재 시세 기준' : '모의 지정가'}
+          </span>
+        </div>
+        <button aria-label="가격 올리기" onClick={() => adjustLimitPrice(1)} disabled={orderType === 'market'}>＋</button>
+      </div>
       <label>수량</label>
       <div className="quantity-input"><button onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</button><strong>{quantity}주</strong><button onClick={() => setQuantity(quantity + 1)}>＋</button></div>
       <div className="quick-amounts">
         {[0.1, 0.25, 0.5, 1].map((ratio) => (
-          <button key={ratio} onClick={() => setCashRatio(ratio)} disabled={side === 'sell'}>
+          <button key={ratio} onClick={() => setOrderRatio(ratio)} disabled={side === 'sell' && availableQuantity < 1}>
             {ratio === 1 ? '최대' : `${ratio * 100}%`}
           </button>
         ))}
       </div>
-      <div className="order-summary"><div><span>예상 주문 금액</span><strong>{formatCash(price * quantity, currency)}</strong></div><div><span>예상 수수료</span><strong>{formatCash(price * quantity * 0.001, currency)}</strong></div></div>
-      <button className={`order-button ${side}`} onClick={submitOrder} disabled={orderMutation.isPending || price <= 0}>
+      {orderType === 'limit' && <p className="limit-order-note">현재 시세가 지정가 조건을 충족하면 시세로 체결되고, 그 전까지 주문 원장에 대기합니다.</p>}
+      {orderError && !accountsQuery.isLoading && !positionsQuery.isLoading && <p className="order-validation">{orderError}</p>}
+      <div className="order-summary"><div><span>예상 주문 금액</span><strong>{formatCash(estimatedGross, currency)}</strong></div><div><span>예상 수수료</span><strong>{formatCash(estimatedFee, currency)}</strong></div></div>
+      <button className={`order-button ${side}`} onClick={submitOrder} disabled={orderMutation.isPending || Boolean(orderError) || accountsQuery.isLoading || positionsQuery.isLoading}>
         {orderMutation.isPending ? '주문 접수 중…' : `${quantity}주 ${side === 'buy' ? '구매하기' : '판매하기'}`}
       </button>
       <p className="paper-note"><Icon name="shield" size={14} /> 모의투자 주문으로 실제 돈은 사용되지 않아요</p>
@@ -209,6 +287,19 @@ export function MarketPage() {
     queryFn: () => marketApi.getCandles(symbol, 252),
     enabled: Boolean(symbol),
     staleTime: 5 * 60 * 1000,
+  });
+  const orderBookQuery = useQuery({
+    queryKey: ['orderbook', symbol],
+    queryFn: () => marketApi.getOrderBook(symbol),
+    enabled: Boolean(symbol) && activeTab === '호가',
+    staleTime: 5_000,
+    refetchInterval: activeTab === '호가' ? 5_000 : false,
+  });
+  const overviewQuery = useQuery({
+    queryKey: ['security-overview', symbol],
+    queryFn: () => marketApi.getSecurityOverview(symbol),
+    enabled: Boolean(symbol) && activeTab === '기업정보',
+    staleTime: 60_000,
   });
 
   const allInstruments = instrumentsQuery.data?.items ?? [];
@@ -295,12 +386,22 @@ export function MarketPage() {
               </div>
               <div className="market-data-note"><Icon name="shield" size={15} /><span>시세와 일봉은 한국투자증권 Open API 기준입니다. 현재 실시간 스트림은 REST 캐시 갱신 방식이며 실제 주문은 전송하지 않습니다.</span></div>
             </>
+          ) : activeTab === '호가' ? (
+            <OrderBook
+              data={orderBookQuery.data}
+              currentPrice={currentPrice}
+              isLoading={orderBookQuery.isLoading}
+              isError={orderBookQuery.isError}
+              onRetry={() => { void orderBookQuery.refetch(); }}
+            />
           ) : (
-            <div className="empty-state">
-              <span><Icon name={activeTab === '기업정보' ? 'chart' : 'book'} size={28} /></span>
-              <h3>{activeTab}</h3>
-              <p>{activeTab === '호가' ? '허위 샘플은 제거했습니다. KIS 실시간 WebSocket 호가 연결 후 표시됩니다.' : '공식 재무 데이터 소스 연결 후 표시됩니다.'}</p>
-            </div>
+            <CompanyOverview
+              data={overviewQuery.data}
+              currentPrice={currentPrice}
+              isLoading={overviewQuery.isLoading}
+              isError={overviewQuery.isError}
+              onRetry={() => { void overviewQuery.refetch(); }}
+            />
           )}
         </section>
         <TradePanel symbol={symbol} price={currentPrice} currency={currency} />

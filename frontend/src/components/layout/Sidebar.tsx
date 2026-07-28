@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { Icon, type IconName } from '../common/Icon';
+import { useUserPreferences } from '../../data/userPreferences';
 import { Logo } from './Logo';
 
 const navigation = [
@@ -12,6 +13,10 @@ const navigation = [
 ];
 
 export function Sidebar() {
+  const navigate = useNavigate();
+  const preferences = useUserPreferences();
+  const initial = preferences.displayName.trim().charAt(0) || 'M';
+
   return (
     <aside className="sidebar">
       <NavLink to="/" aria-label="MOA 홈"><Logo /></NavLink>
@@ -36,9 +41,9 @@ export function Sidebar() {
         <NavLink to="/tax-planner">계산하기 <Icon name="chevron" size={14} /></NavLink>
       </div>
       <div className="profile">
-        <span className="avatar">김</span>
-        <div><strong>김모아</strong><span>안전한 모의투자</span></div>
-        <button aria-label="프로필 더보기"><Icon name="more" size={18} /></button>
+        <span className="avatar">{initial}</span>
+        <div><strong>{preferences.displayName}</strong><span>안전한 모의투자</span></div>
+        <button onClick={() => navigate('/settings')} aria-label="내 설정 열기"><Icon name="more" size={18} /></button>
       </div>
     </aside>
   );
