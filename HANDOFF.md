@@ -153,6 +153,7 @@ npm run dev
 자동 실행한다.
 
 - Python 3.12: 백엔드 pytest와 Ruff
+- PostgreSQL 17: Alembic head 적용, FastAPI `/ready`, 데모 계좌 생성
 - Node.js 20: 프론트엔드 `npm ci`, 빌드와 ESLint
 - Docker: Compose 설정 검증과 백엔드·프론트엔드 이미지 빌드
 

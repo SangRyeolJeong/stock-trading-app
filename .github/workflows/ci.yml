@@ -30,7 +30,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
@@ -40,6 +42,73 @@ jobs:
 
       - name: Run Ruff
         run: python -m ruff check app tests
+
+  postgres:
+    name: PostgreSQL runtime
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      APP_ENV: test
+      AUTH_MODE: demo
+      DATABASE_URL: postgresql+asyncpg://moa:moa-ci@127.0.0.1:5432/moa_ci
+      MARKET_DATA_PROVIDER: mock
+    services:
+      database:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: moa_ci
+          POSTGRES_USER: moa
+          POSTGRES_PASSWORD: moa-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U moa -d moa_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Apply PostgreSQL migrations
+        run: python -m alembic upgrade head
+
+      - name: Check API readiness and account bootstrap
+        run: |
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 \
+            > /tmp/moa-postgres-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/ready > /dev/null; then
+              break
+            fi
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              cat /tmp/moa-postgres-api.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent --show-error http://127.0.0.1:8000/ready
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8000/api/v1/paper/accounts
 
   frontend:
     name: Frontend
