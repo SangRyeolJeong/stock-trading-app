@@ -88,7 +88,7 @@ jobs:
       - name: Apply PostgreSQL migrations
         run: python -m alembic upgrade head
 
-      - name: Check API readiness and account bootstrap
+      - name: Check API readiness, account and preferences bootstrap
         run: |
           python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 \
             > /tmp/moa-postgres-api.log 2>&1 &
@@ -109,6 +109,25 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:8000/ready
           curl --fail --silent --show-error \
             http://127.0.0.1:8000/api/v1/paper/accounts
+          curl --fail --silent --show-error \
+            --request PUT \
+            --header "Content-Type: application/json" \
+            --data '{
+              "display_name": "CI 사용자",
+              "annual_salary_krw": 45000000,
+              "monthly_investment_krw": 500000,
+              "investment_years": 30,
+              "annual_return_rate_pct": 7,
+              "withdrawal_age": 60,
+              "strategy_goal": "retirement",
+              "risk_profile": "growth",
+              "liquidity_preference": true,
+              "fee_sensitivity": true,
+              "income_preference": false
+            }' \
+            http://127.0.0.1:8000/api/v1/me/preferences
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8000/api/v1/me/preferences
 
   frontend:
     name: Frontend

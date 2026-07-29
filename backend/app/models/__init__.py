@@ -7,6 +7,7 @@ from app.models.paper import (
     Position,
     Security,
 )
+from app.models.preferences import UserPreferences
 
 __all__ = [
     "CashLedgerEntry",
@@ -16,4 +17,5 @@ __all__ = [
     "PortfolioSnapshot",
     "Position",
     "Security",
+    "UserPreferences",
 ]

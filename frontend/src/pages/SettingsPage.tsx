@@ -1,4 +1,8 @@
 import { useState, type FormEvent } from 'react';
+import {
+  usePreferencesSyncStatus,
+  type PreferencesSyncStatus,
+} from '../app/preferencesSyncContext';
 import { useToast } from '../app/toast';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
@@ -18,15 +22,23 @@ const riskOptions: Array<{ label: string; value: UserPreferences['riskProfile'] 
 
 export function SettingsPage() {
   const preferences = useUserPreferences();
+  const syncStatus = usePreferencesSyncStatus();
   return (
     <SettingsForm
       key={JSON.stringify(preferences)}
       preferences={preferences}
+      syncStatus={syncStatus}
     />
   );
 }
 
-function SettingsForm({ preferences }: { preferences: UserPreferences }) {
+function SettingsForm({
+  preferences,
+  syncStatus,
+}: {
+  preferences: UserPreferences;
+  syncStatus: PreferencesSyncStatus;
+}) {
   const [draft, setDraft] = useState(preferences);
   const { showToast } = useToast();
 
@@ -47,7 +59,11 @@ function SettingsForm({ preferences }: { preferences: UserPreferences }) {
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     saveUserPreferences(draft);
-    showToast('사용자 설정을 저장했습니다.');
+    showToast(
+      syncStatus === 'local'
+        ? '사용자 설정을 이 브라우저에 저장했습니다.'
+        : '사용자 설정을 저장했습니다. 계정에 동기화합니다.',
+    );
   };
 
   const handleReset = () => {
@@ -71,7 +87,12 @@ function SettingsForm({ preferences }: { preferences: UserPreferences }) {
         <article className="card settings-card">
           <div className="settings-heading">
             <span>프로필</span>
-            <small>이 기기에만 저장</small>
+            <small>
+              {syncStatus === 'local' && '이 기기에만 저장'}
+              {syncStatus === 'syncing' && '계정 동기화 중'}
+              {syncStatus === 'synced' && '계정 동기화 완료'}
+              {syncStatus === 'error' && '로컬 저장 · 동기화 재시도 필요'}
+            </small>
           </div>
           <label htmlFor="display-name">표시 이름</label>
           <div className="settings-input">
@@ -190,7 +211,11 @@ function SettingsForm({ preferences }: { preferences: UserPreferences }) {
           </div>
           <div className="form-note">
             <Icon name="shield" size={17} />
-            <p>설정은 현재 브라우저에만 저장되며 서버로 전송되지 않습니다. 계산 요청에는 필요한 숫자만 사용됩니다.</p>
+            <p>
+              {syncStatus === 'local'
+                ? '데모 모드에서는 설정이 현재 브라우저에만 저장됩니다.'
+                : '로그인 모드에서는 사용자별로 서버와 동기화하며, 연결 오류가 있어도 이 브라우저의 설정은 유지됩니다.'}
+            </p>
           </div>
           <div className="settings-actions">
             <button type="button" className="settings-reset" onClick={handleReset}>기본값 복원</button>

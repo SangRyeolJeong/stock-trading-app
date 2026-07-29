@@ -31,8 +31,9 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   incomePreference: false,
 };
 
-const STORAGE_KEY = 'moa-user-preferences-v1';
+const STORAGE_KEY_PREFIX = 'moa-user-preferences-v1';
 const listeners = new Set<() => void>();
+let activeStorageKey = STORAGE_KEY_PREFIX;
 
 function clamp(value: unknown, minimum: number, maximum: number, fallback: number) {
   const number = Number(value);
@@ -99,10 +100,10 @@ function sanitize(value: unknown): UserPreferences {
   };
 }
 
-function loadPreferences() {
+function loadPreferences(storageKey = activeStorageKey) {
   if (typeof window === 'undefined') return DEFAULT_USER_PREFERENCES;
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = window.localStorage.getItem(storageKey);
     return stored ? sanitize(JSON.parse(stored) as unknown) : DEFAULT_USER_PREFERENCES;
   } catch {
     return DEFAULT_USER_PREFERENCES;
@@ -122,7 +123,7 @@ function subscribe(listener: () => void) {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
-    if (event.key !== STORAGE_KEY) return;
+    if (event.key !== activeStorageKey) return;
     try {
       currentPreferences = event.newValue
         ? sanitize(JSON.parse(event.newValue) as unknown)
@@ -136,7 +137,7 @@ if (typeof window !== 'undefined') {
 
 export function saveUserPreferences(value: UserPreferences) {
   currentPreferences = sanitize(value);
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(currentPreferences));
+  window.localStorage.setItem(activeStorageKey, JSON.stringify(currentPreferences));
   emitChange();
 }
 
@@ -146,8 +147,19 @@ export function updateUserPreferences(value: Partial<UserPreferences>) {
 
 export function resetUserPreferences() {
   currentPreferences = DEFAULT_USER_PREFERENCES;
-  window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(activeStorageKey);
   emitChange();
+}
+
+export function setUserPreferencesScope(userId: string | null) {
+  const nextStorageKey = userId
+    ? `${STORAGE_KEY_PREFIX}:${encodeURIComponent(userId)}`
+    : STORAGE_KEY_PREFIX;
+  if (nextStorageKey === activeStorageKey) return currentPreferences;
+  activeStorageKey = nextStorageKey;
+  currentPreferences = loadPreferences(nextStorageKey);
+  emitChange();
+  return currentPreferences;
 }
 
 export function useUserPreferences() {

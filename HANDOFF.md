@@ -51,12 +51,12 @@ git log --oneline -5
 2026-07-29 새 WSL 복제본에서 확인:
 
 ```text
-backend pytest: 67 passed
+backend pytest: 71 passed
 backend Ruff: All checks passed
-frontend Vitest: 7 passed
+frontend Vitest: 15 passed
 frontend build: passed
 frontend ESLint: passed
-Alembic upgrade to 20260729_0002: passed
+Alembic upgrade to 20260729_0003: passed
 local smoke test: passed
 git diff check: passed
 ```
@@ -91,6 +91,7 @@ npm run lint
 - PostgreSQL·SQLAlchemy 기반 모의투자 원장
 - 데모/Supabase 전환형 인증과 사용자별 모의 계좌·원장 격리
 - Supabase 이메일·비밀번호 로그인/회원가입 및 API Bearer 토큰 연결
+- 사용자별 투자 기본 설정 API와 계정별 브라우저 캐시·서버 동기화
 - 시장가/지정가 주문, 자동 체결, 취소, 현금·수량 예약, 평균단가와 실현손익
 - 포트폴리오 및 주문 내역 API/화면
 - `KR-2026.07` 절세 비교 엔진
@@ -145,7 +146,10 @@ npm run dev
 
 1. 운영 PostgreSQL과 배포 환경을 구성하고 Supabase 프로젝트에서 실제
    로그인·토큰 검증을 통합 테스트한다.
-2. 사용자 프로필 서버 동기화와 계정 삭제·데이터 보존 정책을 설계한다.
+2. 계정 삭제 시 설정·모의투자 원장의 삭제 또는 보존 정책을 확정하고
+   사용자 데이터 삭제 흐름을 구현한다.
+3. 여러 기기에서 동시에 설정을 수정할 때의 충돌 정책과 동기화 상태 관측을
+   운영 요구사항에 맞게 보강한다.
 
 ## CI
 
@@ -153,7 +157,7 @@ npm run dev
 자동 실행한다.
 
 - Python 3.12: 백엔드 pytest와 Ruff
-- PostgreSQL 17: Alembic head 적용, FastAPI `/ready`, 데모 계좌 생성
+- PostgreSQL 17: Alembic head 적용, FastAPI `/ready`, 데모 계좌·설정 생성
 - Node.js 20: 프론트엔드 `npm ci`, 빌드와 ESLint
 - Docker: Compose 설정 검증과 백엔드·프론트엔드 이미지 빌드
 
@@ -188,6 +192,21 @@ FastAPI/Python으로 단일화됐다.
 - `paper_accounts.user_id`에는 단일 계좌 unique constraint를 추가했다.
 - 사용자 A/B의 계좌·주문·포지션 격리와 계좌 ID 주입 거부를 테스트한다.
 - 코드에서 사용하지 않던 Redis 설정과 Python 의존성을 제거했다.
+
+## 사용자 설정 서버 동기화
+
+- `GET/PUT /api/v1/me/preferences`가 현재 인증 사용자별 투자 기본 설정을
+  조회하고 저장한다.
+- DB와 Pydantic 양쪽에서 숫자 범위, 전략 목표, 위험성향과 알 수 없는 필드를
+  검증한다.
+- 프론트는 Supabase 로그인 사용자의 로컬 캐시 키를 계정별로 분리해 다른
+  사용자의 설정이 잠깐 노출되거나 섞이지 않게 한다.
+- 서버 설정을 우선 불러오고, 최초 사용자면 계정별 로컬 기본값으로 생성한다.
+- 설정 변경은 600ms 동안 모아 저장하며 네트워크 오류가 있어도 로컬 값을
+  유지하고 설정 화면에 동기화 상태를 표시한다.
+- 데모 인증에서는 이전과 같이 브라우저 로컬 설정만 사용한다.
+- Alembic `20260729_0003`, 사용자 격리·검증 API 테스트, 로컬 범위·초기화·
+  지연 저장 프론트 테스트를 추가했다.
 
 ## 컨테이너 실행
 
