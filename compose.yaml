@@ -1,0 +1,55 @@
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: moa
+      POSTGRES_USER: moa
+      POSTGRES_PASSWORD: moa-local-only
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U moa -d moa
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - moa-postgres:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      APP_ENV: development
+      AUTH_MODE: demo
+      DATABASE_URL: postgresql+asyncpg://moa:moa-local-only@database:5432/moa
+      MARKET_DATA_PROVIDER: mock
+      CORS_ORIGINS: http://localhost:5173
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+        VITE_AUTH_MODE: demo
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:8080"
+
+volumes:
+  moa-postgres:

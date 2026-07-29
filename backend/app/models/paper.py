@@ -22,6 +22,9 @@ QUANTITY = Numeric(28, 8)
 
 class PaperAccount(Base):
     __tablename__ = "paper_accounts"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_paper_accounts_user_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(64), index=True)

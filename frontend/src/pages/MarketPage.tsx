@@ -71,7 +71,7 @@ function TradePanel({
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [quantity, setQuantity] = useState(1);
-  const [limitPrice, setLimitPrice] = useState(0);
+  const [customLimitPrice, setCustomLimitPrice] = useState<number | null>(null);
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const accountsQuery = useQuery({
@@ -80,7 +80,7 @@ function TradePanel({
   });
   const positionsQuery = useQuery({
     queryKey: ['paper-positions', 'demo-account'],
-    queryFn: () => paperApi.getPositions('demo-account'),
+    queryFn: paperApi.getPositions,
   });
   const exchangeRateQuery = useQuery({
     queryKey: ['exchange-rate', 'USD', 'KRW'],
@@ -95,6 +95,7 @@ function TradePanel({
   const availableCash = Number(cashBalance?.amount ?? 0);
   const position = positionsQuery.data?.find((item) => item.symbol === symbol);
   const availableQuantity = Math.floor(Number(position?.quantity ?? 0));
+  const limitPrice = customLimitPrice ?? price;
   const executionPrice = orderType === 'limit' ? limitPrice : price;
   const estimatedGross = executionPrice * quantity;
   const estimatedFee = estimatedGross * 0.001;
@@ -120,20 +121,9 @@ function TradePanel({
     onError: (error: Error) => showToast(error.message),
   });
 
-  useEffect(() => {
-    setQuantity(1);
-    setSide('buy');
-    setOrderType('market');
-    setLimitPrice(0);
-  }, [symbol]);
-
-  useEffect(() => {
-    if (price > 0 && limitPrice <= 0) setLimitPrice(price);
-  }, [limitPrice, price]);
-
   const selectOrderType = (nextType: 'market' | 'limit') => {
     setOrderType(nextType);
-    if (nextType === 'limit' && price > 0) setLimitPrice(price);
+    if (nextType === 'limit' && price > 0) setCustomLimitPrice(price);
   };
 
   const selectSide = (nextSide: 'buy' | 'sell') => {
@@ -145,7 +135,7 @@ function TradePanel({
     if (orderType !== 'limit') return;
     const step = currency === 'KRW' ? 1 : 0.01;
     const nextPrice = Math.max(step, limitPrice + step * direction);
-    setLimitPrice(currency === 'KRW' ? Math.round(nextPrice) : Number(nextPrice.toFixed(2)));
+    setCustomLimitPrice(currency === 'KRW' ? Math.round(nextPrice) : Number(nextPrice.toFixed(2)));
   };
 
   const setOrderRatio = (ratio: number) => {
@@ -170,7 +160,6 @@ function TradePanel({
       limit_price: orderType === 'limit'
         ? currency === 'KRW' ? String(Math.round(limitPrice)) : limitPrice.toFixed(2)
         : undefined,
-      account_id: 'demo-account',
       idempotency_key: crypto.randomUUID(),
     });
   };
@@ -404,7 +393,7 @@ export function MarketPage() {
             />
           )}
         </section>
-        <TradePanel symbol={symbol} price={currentPrice} currency={currency} />
+        <TradePanel key={symbol} symbol={symbol} price={currentPrice} currency={currency} />
       </div>
     </PageContainer>
   );

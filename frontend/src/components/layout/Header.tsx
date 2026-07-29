@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../app/authContext';
 import { useToast } from '../../app/toast';
 import { marketApi } from '../../services/marketApi';
 import { formatUpdatedAt } from '../../utils/format';
@@ -76,6 +77,7 @@ export function Header() {
   const searchRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const { isSupabase, signOut, userEmail } = useAuth();
   const { showToast } = useToast();
 
   const normalizedQuery = query.trim();
@@ -124,8 +126,6 @@ export function Header() {
       : [];
     return [...shortcuts, ...instruments];
   }, [instrumentsQuery.data?.items, normalizedQuery, searchTerm]);
-
-  useEffect(() => setActiveIndex(0), [normalizedQuery]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -207,6 +207,7 @@ export function Header() {
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
+            setActiveIndex(0);
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
@@ -270,6 +271,17 @@ export function Header() {
         </span>
         <button className="icon-button notification" onClick={() => showToast('현재 새로운 알림이 없습니다.')} aria-label="알림"><Icon name="bell" size={20} /></button>
         <button className="mode-chip" onClick={() => navigate('/portfolio')}>모의투자 <Icon name="chevron" size={13} /></button>
+        {isSupabase && (
+          <button
+            className="auth-chip"
+            title={userEmail ?? '로그인 사용자'}
+            onClick={() => {
+              void signOut().catch(() => showToast('로그아웃하지 못했습니다. 다시 시도해 주세요.'));
+            }}
+          >
+            로그아웃
+          </button>
+        )}
       </div>
     </header>
   );

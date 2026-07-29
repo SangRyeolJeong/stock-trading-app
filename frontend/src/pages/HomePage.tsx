@@ -90,7 +90,7 @@ export function HomePage() {
   const visibleFavorites = favorites.slice(0, 4);
   const portfolioQuery = useQuery({
     queryKey: ['paper-portfolio', 'demo-account'],
-    queryFn: () => paperApi.getPortfolioSummary('demo-account'),
+    queryFn: paperApi.getPortfolioSummary,
     staleTime: 15_000,
   });
   const exchangeRateQuery = useQuery({

@@ -15,14 +15,21 @@ export function LessonDetailPage() {
   const lesson = findLesson(slug);
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [completed, setCompleted] = useState(
-    () => Boolean(slug && loadLessonProgress()[slug]?.completed),
+  const [completion, setCompletion] = useState(
+    () => ({
+      slug: slug ?? '',
+      completed: Boolean(slug && loadLessonProgress()[slug]?.completed),
+    }),
   );
+  const completed = lesson
+    ? completion.slug === lesson.slug
+      ? completion.completed
+      : Boolean(loadLessonProgress()[lesson.slug]?.completed)
+    : false;
 
   useEffect(() => {
     if (!lesson) return;
     const progress = loadLessonProgress();
-    setCompleted(Boolean(progress[lesson.slug]?.completed));
     saveLessonProgress({
       ...progress,
       [lesson.slug]: {
@@ -48,7 +55,7 @@ export function LessonDetailPage() {
         lastOpenedAt: new Date().toISOString(),
       },
     });
-    setCompleted(nextCompleted);
+    setCompletion({ slug: lesson.slug, completed: nextCompleted });
     showToast(nextCompleted ? '학습 완료로 기록했어요.' : '학습 완료 표시를 취소했어요.');
   };
 

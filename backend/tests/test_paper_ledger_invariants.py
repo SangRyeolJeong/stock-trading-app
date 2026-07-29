@@ -17,7 +17,6 @@ def order(side: str, quantity: int, key: str) -> dict[str, object]:
         "side": side,
         "order_type": "market",
         "quantity": quantity,
-        "account_id": "demo-account",
         "idempotency_key": key,
     }
 

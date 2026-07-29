@@ -63,11 +63,11 @@ export function PortfolioPage() {
   const { showToast } = useToast();
   const portfolioQuery = useQuery({
     queryKey: ['paper-portfolio', 'demo-account'],
-    queryFn: () => paperApi.getPortfolioSummary('demo-account'),
+    queryFn: paperApi.getPortfolioSummary,
   });
   const ordersQuery = useQuery({
     queryKey: ['paper-orders', 'demo-account'],
-    queryFn: () => paperApi.getOrders('demo-account'),
+    queryFn: paperApi.getOrders,
     refetchInterval: 10_000,
   });
   const exchangeRateQuery = useQuery({

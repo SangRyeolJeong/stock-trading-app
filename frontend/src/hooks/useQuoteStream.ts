@@ -5,32 +5,39 @@ import type { QuoteTick } from '../types/api';
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 export function useQuoteStream(symbol: string) {
-  const [tick, setTick] = useState<QuoteTick | null>(null);
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [latestTick, setLatestTick] = useState<{
+    symbol: string;
+    tick: QuoteTick;
+  } | null>(null);
+  const [connection, setConnection] = useState<{
+    symbol: string;
+    status: ConnectionStatus;
+  }>({ symbol, status: 'connecting' });
 
   useEffect(() => {
     let socket: WebSocket | null = null;
     let retryTimer: number | undefined;
     let retryCount = 0;
     let disposed = false;
-    setTick(null);
 
     const connect = () => {
       if (disposed) return;
-      setStatus(retryCount === 0 ? 'connecting' : 'reconnecting');
       const socketBase = API_BASE_URL.replace(/^http/, 'ws');
       socket = new WebSocket(`${socketBase}/api/v1/markets/ws/quotes/${encodeURIComponent(symbol)}`);
 
       socket.onopen = () => {
         retryCount = 0;
-        setStatus('connected');
+        setConnection({ symbol, status: 'connected' });
       };
       socket.onmessage = (event) => {
-        setTick(JSON.parse(event.data) as QuoteTick);
+        setLatestTick({
+          symbol,
+          tick: JSON.parse(event.data) as QuoteTick,
+        });
       };
       socket.onclose = () => {
         if (disposed) return;
-        setStatus('reconnecting');
+        setConnection({ symbol, status: 'reconnecting' });
         retryCount += 1;
         retryTimer = window.setTimeout(connect, Math.min(10_000, 1_000 * 2 ** retryCount));
       };
@@ -42,9 +49,11 @@ export function useQuoteStream(symbol: string) {
       disposed = true;
       window.clearTimeout(retryTimer);
       socket?.close();
-      setStatus('disconnected');
     };
   }, [symbol]);
 
-  return { tick, status };
+  return {
+    tick: latestTick?.symbol === symbol ? latestTick.tick : null,
+    status: connection.symbol === symbol ? connection.status : 'connecting',
+  };
 }

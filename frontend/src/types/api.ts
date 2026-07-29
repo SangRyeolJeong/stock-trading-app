@@ -98,7 +98,6 @@ export interface PaperOrderRequest {
   order_type: 'market' | 'limit';
   quantity: number | string;
   limit_price?: string;
-  account_id: string;
   idempotency_key: string;
 }
 

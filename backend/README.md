@@ -5,7 +5,9 @@ FastAPI 기반의 MOA 백엔드입니다. 비동기 시세 스트림, 모의 주
 
 현재는 한투 API 키 없이도 프론트엔드 개발과 테스트가 가능하도록
 `MockMarketDataProvider`가 기본값입니다. 주문은 PostgreSQL 원장에 영속화되며,
-단일 데모 사용자의 원화·달러 초기 잔액이 첫 조회 또는 주문 시 생성됩니다.
+개발 기본값에서는 데모 사용자의 원화·달러 초기 잔액이 첫 조회 또는 주문 시
+생성됩니다. Supabase 인증 모드에서는 검증된 사용자별로 독립 계좌와 원장이
+생성됩니다.
 
 `MARKET_DATA_PROVIDER=kis`로 변경하면 한국투자증권 REST API에서 국내·해외
 현재가와 USD/KRW 환율을 조회합니다. 앱 키가 없을 때 서버가 실수로 KIS 모드로
@@ -13,35 +15,90 @@ FastAPI 기반의 MOA 백엔드입니다. 비동기 시세 스트림, 모의 주
 
 ## 로컬 실행
 
-Linux/macOS:
+현재 기준 개발 환경은 `/home/user/code/stock-trading-app`의 WSL Ubuntu와
+Linux CPython 3.12입니다. 이 저장소에 이미 구성된 `.venv`가 있다면 바로
+활성화할 수 있습니다.
 
 ```bash
-python3 -m venv .venv
+cd /home/user/code/stock-trading-app/backend
 source .venv/bin/activate
-pip install -r requirements-dev.txt
-cp .env.example .env
-alembic upgrade head
-pytest
-uvicorn app.main:app --reload --port 8000
+python -m alembic upgrade head
+python -m uvicorn app.main:app --reload --port 8000
 ```
 
-현재 작업 환경처럼 WSL의 `python3-venv`가 없는 경우 Windows PowerShell에서
-Python 3.12 가상환경을 사용할 수 있습니다.
+처음 구성하거나 가상환경을 다시 만드는 경우에는 WSL에서 `uv`를 사용합니다.
 
-```powershell
-cd D:\programming\backend
-py -3.12 -m venv .venv-win
-.\.venv-win\Scripts\python -m pip install -r requirements-dev.txt
-.\.venv-win\Scripts\python -m alembic upgrade head
-.\.venv-win\Scripts\python -m pytest
-.\.venv-win\Scripts\python -m uvicorn app.main:app --reload --port 8000
+```bash
+cd /home/user/code/stock-trading-app/backend
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt
+cp -n .env.example .env
+chmod 600 .env
 ```
+
+`cp -n`은 기존 `.env`를 덮어쓰지 않습니다. 실제 키는 `.env.example`이 아닌
+`backend/.env`에만 저장하며 출력하거나 커밋하지 않습니다.
+
+## 인증과 사용자별 원장
+
+개발 기본값은 `AUTH_MODE=demo`이며 기존 `demo-account`를 사용합니다.
+Supabase Auth를 연결할 때는 다음 서버 환경변수를 설정합니다.
+
+```text
+AUTH_MODE=supabase
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+Supabase 모드에서는 `Authorization: Bearer <access-token>`이 필요합니다.
+백엔드는 Supabase Auth 서버의 `get_user(jwt)`로 토큰을 검증하고 검증된
+사용자 ID로 계좌를 결정합니다. 주문 요청과 조회 URL은 `account_id`를 받지
+않으므로 클라이언트가 다른 사용자의 계좌를 선택할 수 없습니다.
+
+`APP_ENV=production`에서는 `AUTH_MODE=supabase`와 Supabase URL/publishable
+key가 모두 없으면 설정 오류로 시작을 중단합니다. secret/service-role 키는
+이 검증에 필요하지 않으며 브라우저나 로그에 노출하지 않습니다.
+
+기본 `DATABASE_URL`은 로컬 PostgreSQL의 `moa` 데이터베이스를 가리킵니다.
+PostgreSQL을 준비한 뒤 마이그레이션을 적용합니다.
+
+서버는 기본적으로 인스턴스당 영구 연결 5개와 일시 초과 연결 5개까지만
+허용합니다. 풀 대기 10초, 연결 10초, 쿼리 30초 제한을 적용하고 30분이 지난
+연결은 재생성합니다. `DATABASE_POOL_SIZE`, `DATABASE_MAX_OVERFLOW`,
+`DATABASE_POOL_TIMEOUT_SECONDS`, `DATABASE_POOL_RECYCLE_SECONDS`,
+`DATABASE_CONNECT_TIMEOUT_SECONDS`, `DATABASE_COMMAND_TIMEOUT_SECONDS`로
+조정할 수 있습니다. 전체 최대 연결 수는 대략
+`인스턴스 수 × (POOL_SIZE + MAX_OVERFLOW)`이므로 DB 한도보다 낮게 잡습니다.
+운영 환경은 실수로 SQLite가 사용되지 않도록 `postgresql+asyncpg://` URL만
+허용합니다.
+
+```bash
+cd /home/user/code/stock-trading-app/backend
+.venv/bin/python -m alembic upgrade head
+```
+
+루트 `compose.yaml`은 개발용 PostgreSQL을 함께 실행하고 백엔드 컨테이너 시작
+시 Alembic 마이그레이션을 적용합니다. 운영 환경에서는 마이그레이션을 배포
+단계의 단일 작업으로 실행해 여러 인스턴스가 동시에 적용하지 않도록 구성하는
+것이 권장됩니다.
 
 실행 후 확인:
 
 - API 상태: `http://localhost:8000/health`
+- API 준비 상태(DB 포함): `http://localhost:8000/ready`
 - API 문서: `http://localhost:8000/docs`
 - OpenAPI: `http://localhost:8000/openapi.json`
+
+## 검증
+
+테스트는 별도의 SQLite DB를 사용하므로 로컬 PostgreSQL 없이도 실행할 수
+있습니다.
+
+```bash
+cd /home/user/code/stock-trading-app/backend
+.venv/bin/python -m pytest
+.venv/bin/python -m ruff check app tests
+```
 
 ## 현재 구조
 
@@ -72,6 +129,9 @@ app/
 주문에 예약된 금액·수량까지 반영해 검증합니다. 수수료율은 `PAPER_FEE_RATE`로
 설정하며, 체결 시 주문·현금 원장·포지션·스냅샷을 하나의 DB 트랜잭션으로
 처리합니다.
+
+모든 모의투자·포트폴리오 API는 현재 인증 사용자의 계좌로 자동 범위가
+제한됩니다. 데모 모드에서도 같은 서버 측 경계를 거쳐 `demo-user`로 동작합니다.
 
 ## 시장 데이터 API
 

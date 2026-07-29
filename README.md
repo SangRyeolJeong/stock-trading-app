@@ -24,47 +24,97 @@
 
 ## 실행
 
+현재 기준 개발 환경은 WSL Ubuntu이며 저장소 경로는
+`/home/user/code/stock-trading-app`입니다. 백엔드와 프론트엔드는 각각
+WSL 안의 Linux용 의존성을 사용합니다.
+
 ### 1. 백엔드
 
-Windows PowerShell:
-
-```powershell
-cd D:\programming\backend
-py -3.12 -m venv .venv-win
-.\.venv-win\Scripts\python -m pip install -r requirements-dev.txt
-.\.venv-win\Scripts\python -m alembic upgrade head
-.\.venv-win\Scripts\python -m pytest
-.\.venv-win\Scripts\python -m uvicorn app.main:app --reload --port 8000
+```bash
+cd /home/user/code/stock-trading-app/backend
+source .venv/bin/activate
+python -m alembic upgrade head
+python -m uvicorn app.main:app --reload --port 8000
 ```
+
+처음 환경을 구성하는 경우에는 [backend/README.md](backend/README.md)의
+Python 3.12 가상환경과 환경변수 설정 절차를 먼저 따릅니다. 기본
+`DATABASE_URL`은 로컬 PostgreSQL을 사용하므로 서버 실행 전 PostgreSQL과
+마이그레이션 상태를 확인해야 합니다. 시장 데이터 공급자는 기본적으로 Mock이며,
+KIS 키 없이도 개발할 수 있습니다.
 
 ### 2. 프론트엔드
 
 ```bash
-cd /mnt/d/programming/frontend
-npm install
+cd /home/user/code/stock-trading-app/frontend
+npm ci
 npm run dev
 ```
+
+이미 `node_modules`가 구성되어 있다면 다음 실행부터는 `npm run dev`만
+사용하면 됩니다.
 
 접속:
 
 - 앱: `http://localhost:5173`
+- API 상태: `http://localhost:8000/health`
+- API 준비 상태(DB 포함): `http://localhost:8000/ready`
 - API 문서: `http://localhost:8000/docs`
 
 실제 한국투자증권 시세를 사용할 때는 `backend/.env`에
 `MARKET_DATA_PROVIDER=kis`, `KIS_APP_KEY`, `KIS_APP_SECRET`을 설정합니다.
+실제 키는 프론트엔드 환경변수에 두거나 Git에 커밋하지 않습니다.
+
+기본 인증 모드는 로컬 개발용 `demo`입니다. 사용자별 계정으로 실행하려면
+백엔드와 프론트엔드에 같은 Supabase 프로젝트를 설정합니다.
+
+```text
+# backend/.env
+AUTH_MODE=supabase
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+
+# frontend/.env.local
+VITE_AUTH_MODE=supabase
+VITE_SUPABASE_URL=https://<project>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+운영 환경은 `AUTH_MODE=supabase`가 아니면 백엔드가 시작되지 않습니다.
+publishable key는 Supabase가 브라우저 사용을 허용한 공개 키이며,
+secret/service-role 키는 프론트엔드에 넣지 않습니다.
+
+### 컨테이너로 로컬 실행
+
+Docker가 설치된 환경에서는 Mock 시세·데모 인증·PostgreSQL 구성을 한 번에
+실행할 수 있습니다.
+
+```bash
+cd /home/user/code/stock-trading-app
+docker compose up --build
+```
+
+앱은 `http://localhost:5173`, API는 `http://localhost:8000`에서 열립니다.
+`compose.yaml`의 DB 비밀번호는 로컬 개발 전용입니다. 운영 배포에서는 관리형
+PostgreSQL과 별도 비밀 저장소를 사용하고, 프론트 이미지를 빌드할 때 Supabase
+관련 `VITE_*` build argument를 지정해야 합니다.
+
+운영 환경변수, 마이그레이션 순서와 출시 전 보안 점검은
+[배포 가이드](docs/DEPLOYMENT.md)를 따릅니다.
 
 ## 검증
 
 ```bash
-cd frontend
-npm run build
-npm run lint
+cd /home/user/code/stock-trading-app/backend
+.venv/bin/python -m pytest
+.venv/bin/python -m ruff check app tests
 ```
 
-```powershell
-cd D:\programming\backend
-.\.venv-win\Scripts\python -m pytest
-.\.venv-win\Scripts\python -m ruff check app tests
+```bash
+cd /home/user/code/stock-trading-app/frontend
+npm test
+npm run build
+npm run lint
 ```
 
 ## 핵심 원칙

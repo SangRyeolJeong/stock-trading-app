@@ -10,12 +10,13 @@ OrderSide = Literal["buy", "sell"]
 
 
 class PaperOrderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     symbol: str = Field(min_length=1, max_length=12)
     side: OrderSide
     order_type: Literal["market", "limit"] = "market"
     quantity: Decimal = Field(gt=0, le=Decimal("100000"))
     limit_price: Decimal | None = Field(default=None, gt=0)
-    account_id: str = "demo-account"
     idempotency_key: str = Field(min_length=8, max_length=128)
 
     @model_validator(mode="after")

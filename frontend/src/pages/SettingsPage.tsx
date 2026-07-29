@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useToast } from '../app/toast';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
@@ -18,10 +18,17 @@ const riskOptions: Array<{ label: string; value: UserPreferences['riskProfile'] 
 
 export function SettingsPage() {
   const preferences = useUserPreferences();
+  return (
+    <SettingsForm
+      key={JSON.stringify(preferences)}
+      preferences={preferences}
+    />
+  );
+}
+
+function SettingsForm({ preferences }: { preferences: UserPreferences }) {
   const [draft, setDraft] = useState(preferences);
   const { showToast } = useToast();
-
-  useEffect(() => setDraft(preferences), [preferences]);
 
   const setNumber = (
     key: keyof Pick<

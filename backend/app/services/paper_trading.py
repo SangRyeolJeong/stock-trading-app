@@ -1,10 +1,14 @@
 from collections.abc import Sequence
 from decimal import ROUND_HALF_UP, Decimal
+from hashlib import sha256
 from uuid import UUID
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import DEMO_USER_ID
 from app.core.config import get_settings
 from app.models.paper import (
     CashLedgerEntry,
@@ -33,7 +37,6 @@ from app.schemas.paper import (
 MONEY_QUANTUM = Decimal("0.00000001")
 ZERO = Decimal("0")
 DEMO_ACCOUNT_ID = "demo-account"
-DEMO_USER_ID = "demo-user"
 
 
 class PaperTradingError(RuntimeError):
@@ -73,30 +76,71 @@ class PaperTradingService:
         }
         self.fee_rate = settings.paper_fee_rate
 
-    async def ensure_demo_account(self, session: AsyncSession) -> PaperAccount:
-        account = await session.get(PaperAccount, DEMO_ACCOUNT_ID)
+    @staticmethod
+    def account_id_for_user(user_id: str) -> str:
+        if user_id == DEMO_USER_ID:
+            return DEMO_ACCOUNT_ID
+        digest = sha256(user_id.encode("utf-8")).hexdigest()[:32]
+        return f"paper-{digest}"
+
+    async def ensure_user_account(
+        self,
+        session: AsyncSession,
+        user_id: str,
+    ) -> PaperAccount:
+        account = await session.scalar(
+            select(PaperAccount)
+            .where(PaperAccount.user_id == user_id)
+            .order_by(PaperAccount.created_at)
+        )
         if account is not None:
             return account
 
-        account = PaperAccount(
-            id=DEMO_ACCOUNT_ID,
-            user_id=DEMO_USER_ID,
-            name="MOA 모의투자",
-            base_currency="KRW",
-        )
-        session.add(account)
-        await session.flush()
-        for currency, balance in self.initial_balances.items():
-            session.add(
-                CashLedgerEntry(
-                    account_id=account.id,
-                    currency=currency,
-                    entry_type="initial_deposit",
-                    amount=balance,
-                    balance_after=balance,
-                )
+        account_id = self.account_id_for_user(user_id)
+        values = {
+            "id": account_id,
+            "user_id": user_id,
+            "name": "MOA 모의투자",
+            "base_currency": "KRW",
+            "status": "active",
+        }
+        dialect_name = session.get_bind().dialect.name
+        if dialect_name == "postgresql":
+            statement = (
+                postgresql_insert(PaperAccount)
+                .values(**values)
+                .on_conflict_do_nothing()
+                .returning(PaperAccount.id)
             )
-        await session.flush()
+        elif dialect_name == "sqlite":
+            statement = (
+                sqlite_insert(PaperAccount)
+                .values(**values)
+                .on_conflict_do_nothing()
+                .returning(PaperAccount.id)
+            )
+        else:
+            raise RuntimeError(f"지원하지 않는 원장 데이터베이스입니다: {dialect_name}")
+
+        inserted_account_id = await session.scalar(statement)
+        if inserted_account_id is not None:
+            for currency, balance in self.initial_balances.items():
+                session.add(
+                    CashLedgerEntry(
+                        account_id=inserted_account_id,
+                        currency=currency,
+                        entry_type="initial_deposit",
+                        amount=balance,
+                        balance_after=balance,
+                    )
+                )
+            await session.flush()
+
+        account = await session.scalar(
+            select(PaperAccount).where(PaperAccount.user_id == user_id)
+        )
+        if account is None:
+            raise AccountNotFoundError("모의 계좌를 생성하지 못했습니다.")
         return account
 
     async def _cash_balance(self, session: AsyncSession, account_id: str, currency: str) -> Decimal:
@@ -334,21 +378,23 @@ class PaperTradingService:
     async def execute_immediately(
         self,
         session: AsyncSession,
+        user_id: str,
         request: PaperOrderRequest,
         quote: Quote,
     ) -> PaperOrderSchema:
         async with session.begin():
-            await self.ensure_demo_account(session)
+            account = await self.ensure_user_account(session, user_id)
             account = await session.scalar(
-                select(PaperAccount).where(PaperAccount.id == request.account_id).with_for_update()
+                select(PaperAccount)
+                .where(PaperAccount.id == account.id, PaperAccount.user_id == user_id)
+                .with_for_update()
             )
-            if account is None:
-                raise AccountNotFoundError("모의 계좌를 찾을 수 없습니다.")
+            assert account is not None
 
             existing_row = (
                 await session.execute(
                     self._order_query().where(
-                        PaperOrder.account_id == request.account_id,
+                        PaperOrder.account_id == account.id,
                         PaperOrder.idempotency_key == request.idempotency_key,
                     )
                 )
@@ -415,14 +461,14 @@ class PaperTradingService:
     async def list_pending_order_refs(
         self,
         session: AsyncSession,
-        account_id: str,
+        user_id: str,
     ) -> list[tuple[UUID, str]]:
         async with session.begin():
-            await self.ensure_demo_account(session)
+            account = await self.ensure_user_account(session, user_id)
             rows = (
                 await session.execute(
                     select(PaperOrder.id, PaperOrder.security_symbol).where(
-                        PaperOrder.account_id == account_id,
+                        PaperOrder.account_id == account.id,
                         PaperOrder.status == "accepted",
                     )
                 )
@@ -432,12 +478,19 @@ class PaperTradingService:
     async def try_fill_pending_order(
         self,
         session: AsyncSession,
+        user_id: str,
         order_id: UUID,
         quote: Quote,
     ) -> None:
         async with session.begin():
             order = await session.scalar(
-                select(PaperOrder).where(PaperOrder.id == order_id).with_for_update()
+                select(PaperOrder)
+                .join(PaperAccount, PaperAccount.id == PaperOrder.account_id)
+                .where(
+                    PaperOrder.id == order_id,
+                    PaperAccount.user_id == user_id,
+                )
+                .with_for_update()
             )
             if (
                 order is None
@@ -455,14 +508,18 @@ class PaperTradingService:
     async def cancel_order(
         self,
         session: AsyncSession,
-        account_id: str,
+        user_id: str,
         order_id: UUID,
     ) -> PaperOrderSchema:
         async with session.begin():
+            account = await self.ensure_user_account(session, user_id)
             row = (
                 await session.execute(
                     self._order_query()
-                    .where(PaperOrder.id == order_id, PaperOrder.account_id == account_id)
+                    .where(
+                        PaperOrder.id == order_id,
+                        PaperOrder.account_id == account.id,
+                    )
                     .with_for_update()
                 )
             ).one_or_none()
@@ -478,10 +535,20 @@ class PaperTradingService:
             await session.refresh(order)
             return self._order_schema(order, execution, security)
 
-    async def list_accounts(self, session: AsyncSession) -> list[PaperAccountSchema]:
+    async def list_accounts(
+        self,
+        session: AsyncSession,
+        user_id: str,
+    ) -> list[PaperAccountSchema]:
         async with session.begin():
-            await self.ensure_demo_account(session)
-            accounts = (await session.scalars(select(PaperAccount).order_by(PaperAccount.created_at))).all()
+            await self.ensure_user_account(session, user_id)
+            accounts = (
+                await session.scalars(
+                    select(PaperAccount)
+                    .where(PaperAccount.user_id == user_id)
+                    .order_by(PaperAccount.created_at)
+                )
+            ).all()
             return [
                 PaperAccountSchema(
                     id=account.id,
@@ -496,29 +563,33 @@ class PaperTradingService:
     async def list_orders(
         self,
         session: AsyncSession,
-        account_id: str,
+        user_id: str,
         limit: int = 100,
     ) -> list[PaperOrderSchema]:
         async with session.begin():
-            await self.ensure_demo_account(session)
+            account = await self.ensure_user_account(session, user_id)
             rows = (
                 await session.execute(
                     self._order_query()
-                    .where(PaperOrder.account_id == account_id)
+                    .where(PaperOrder.account_id == account.id)
                     .order_by(PaperOrder.created_at.desc())
                     .limit(limit)
                 )
             ).all()
             return [self._order_schema(*row) for row in rows]
 
-    async def list_positions(self, session: AsyncSession, account_id: str) -> list[PositionSchema]:
+    async def list_positions(
+        self,
+        session: AsyncSession,
+        user_id: str,
+    ) -> list[PositionSchema]:
         async with session.begin():
-            await self.ensure_demo_account(session)
+            account = await self.ensure_user_account(session, user_id)
             rows: Sequence[tuple[Position, Security]] = (
                 await session.execute(
                     select(Position, Security)
                     .join(Security, Security.symbol == Position.security_symbol)
-                    .where(Position.account_id == account_id, Position.quantity > 0)
+                    .where(Position.account_id == account.id, Position.quantity > 0)
                     .order_by(Position.updated_at.desc())
                 )
             ).all()
@@ -537,23 +608,27 @@ class PaperTradingService:
                 for position, security in rows
             ]
 
-    async def get_cash_balances(self, session: AsyncSession, account_id: str) -> list[CashBalance]:
+    async def get_cash_balances(
+        self,
+        session: AsyncSession,
+        user_id: str,
+    ) -> list[CashBalance]:
         async with session.begin():
-            await self.ensure_demo_account(session)
-            return await self._cash_balances(session, account_id)
+            account = await self.ensure_user_account(session, user_id)
+            return await self._cash_balances(session, account.id)
 
     async def get_realized_pnl_by_currency(
         self,
         session: AsyncSession,
-        account_id: str,
+        user_id: str,
     ) -> dict[str, Decimal]:
         async with session.begin():
-            await self.ensure_demo_account(session)
+            account = await self.ensure_user_account(session, user_id)
             rows = (
                 await session.execute(
                     select(Security.currency, func.coalesce(func.sum(Position.realized_pnl), ZERO))
                     .join(Security, Security.symbol == Position.security_symbol)
-                    .where(Position.account_id == account_id)
+                    .where(Position.account_id == account.id)
                     .group_by(Security.currency)
                 )
             ).all()

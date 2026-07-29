@@ -5,6 +5,5 @@ pydantic-settings==2.10.1
 SQLAlchemy[asyncio]==2.0.41
 alembic==1.16.4
 asyncpg==0.30.0
-redis==6.2.0
 supabase==2.17.0
 python-dotenv==1.1.1

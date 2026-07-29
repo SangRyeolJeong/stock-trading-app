@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import AuthenticatedUser, get_current_user
 from app.db.session import get_session
 from app.schemas.paper import (
     PaperAccount,
@@ -19,43 +20,48 @@ from app.services.market import market_data_service
 from app.services.paper_trading import PaperTradingError, money, paper_trading_service
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
 router = APIRouter(tags=["paper-trading"])
 
 
 @router.get("/paper/accounts", response_model=list[PaperAccount])
-async def list_paper_accounts(session: Session) -> list[PaperAccount]:
-    return await paper_trading_service.list_accounts(session)
+async def list_paper_accounts(session: Session, user: CurrentUser) -> list[PaperAccount]:
+    return await paper_trading_service.list_accounts(session, user.id)
 
 
 @router.get("/paper/orders", response_model=list[PaperOrder])
 async def list_paper_orders(
     session: Session,
-    account_id: str = "demo-account",
+    user: CurrentUser,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[PaperOrder]:
-    pending_orders = await paper_trading_service.list_pending_order_refs(session, account_id)
+    pending_orders = await paper_trading_service.list_pending_order_refs(session, user.id)
     for order_id, symbol in pending_orders:
         quote = await market_data_service.get_quote(symbol)
         if quote is not None:
-            await paper_trading_service.try_fill_pending_order(session, order_id, quote)
-    return await paper_trading_service.list_orders(session, account_id, limit)
+            await paper_trading_service.try_fill_pending_order(session, user.id, order_id, quote)
+    return await paper_trading_service.list_orders(session, user.id, limit)
 
 
 @router.get("/paper/positions", response_model=list[Position])
 async def list_paper_positions(
     session: Session,
-    account_id: str = "demo-account",
+    user: CurrentUser,
 ) -> list[Position]:
-    return await paper_trading_service.list_positions(session, account_id)
+    return await paper_trading_service.list_positions(session, user.id)
 
 
 @router.post("/paper/orders", response_model=PaperOrder, status_code=status.HTTP_201_CREATED)
-async def create_paper_order(order: PaperOrderRequest, session: Session) -> PaperOrder:
+async def create_paper_order(
+    order: PaperOrderRequest,
+    session: Session,
+    user: CurrentUser,
+) -> PaperOrder:
     quote = await market_data_service.get_quote(order.symbol)
     if quote is None:
         raise HTTPException(status_code=404, detail="시세를 찾을 수 없습니다.")
     try:
-        return await paper_trading_service.execute_immediately(session, order, quote)
+        return await paper_trading_service.execute_immediately(session, user.id, order, quote)
     except PaperTradingError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
@@ -64,10 +70,10 @@ async def create_paper_order(order: PaperOrderRequest, session: Session) -> Pape
 async def cancel_paper_order(
     order_id: UUID,
     session: Session,
-    account_id: str = "demo-account",
+    user: CurrentUser,
 ) -> PaperOrder:
     try:
-        return await paper_trading_service.cancel_order(session, account_id, order_id)
+        return await paper_trading_service.cancel_order(session, user.id, order_id)
     except PaperTradingError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
@@ -75,11 +81,14 @@ async def cancel_paper_order(
 @router.get("/portfolios/summary", response_model=PortfolioSummary)
 async def get_portfolio_summary(
     session: Session,
-    account_id: str = "demo-account",
+    user: CurrentUser,
 ) -> PortfolioSummary:
-    positions = await paper_trading_service.list_positions(session, account_id)
-    balances = await paper_trading_service.get_cash_balances(session, account_id)
-    realized_pnl_by_currency = await paper_trading_service.get_realized_pnl_by_currency(session, account_id)
+    positions = await paper_trading_service.list_positions(session, user.id)
+    balances = await paper_trading_service.get_cash_balances(session, user.id)
+    realized_pnl_by_currency = await paper_trading_service.get_realized_pnl_by_currency(
+        session,
+        user.id,
+    )
     enriched_positions: list[Position] = []
 
     for position in positions:
@@ -122,7 +131,7 @@ async def get_portfolio_summary(
         )
 
     return PortfolioSummary(
-        account_id=account_id,
+        account_id=paper_trading_service.account_id_for_user(user.id),
         currencies=currencies,
         positions=enriched_positions,
         as_of=datetime.now(UTC),
