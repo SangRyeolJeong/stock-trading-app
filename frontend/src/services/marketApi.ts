@@ -1,5 +1,7 @@
 import type {
   CandleSeries,
+  EtfCatalogResponse,
+  EtfComparison,
   ExchangeRate,
   InstrumentSearchResponse,
   OrderBook,
@@ -43,5 +45,12 @@ export const marketApi = {
     return apiClient<SecurityOverview>(
       `/api/v1/markets/overview/${encodeURIComponent(symbol)}`,
     );
+  },
+  getEtfs() {
+    return apiClient<EtfCatalogResponse>('/api/v1/markets/etfs');
+  },
+  compareEtfs(left: string, right: string) {
+    const params = new URLSearchParams({ left, right });
+    return apiClient<EtfComparison>(`/api/v1/markets/etfs/compare?${params}`);
   },
 };

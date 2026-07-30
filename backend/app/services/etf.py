@@ -1,0 +1,263 @@
+from datetime import date
+from decimal import Decimal
+
+from app.schemas.market import (
+    EtfCatalogResponse,
+    EtfCommonHolding,
+    EtfComparison,
+    EtfHolding,
+    EtfProfile,
+)
+
+DATA_VERSION = "ETF-COMPARE-2026.07"
+COMPARISON_PRINCIPAL_KRW = Decimal("10000000")
+DISCLAIMER = (
+    "운용사 공식 자료의 기준일 스냅샷을 사용한 교육용 비교입니다. "
+    "구성종목과 보수는 변경될 수 있으므로 주문 전 최신 운용사 자료를 확인하세요."
+)
+FORMULA = (
+    "상위 구성종목 중복도 = 공통 종목별 두 ETF 비중의 최솟값 합계 ÷ "
+    "두 ETF 중 더 작은 상위 종목 표시 비중 합계 × 100"
+)
+
+INVESCO_SUITE_URL = "https://www.invesco.com/us/en/solutions/innovation-suite.html"
+QQQ_HOLDINGS_URL = (
+    "https://www.invesco.com/us-rest/contentdetail"
+    "?contentId=841e411c-a1eb-4541-8cb8-0fa603abea81&dnsName=us"
+)
+QQQM_HOLDINGS_URL = (
+    "https://www.invesco.com/content/dam/invesco/us/en/product-documents/etf/commentary/"
+    "monthly-qqqm-commentary-retail-use-.pdf"
+)
+SPY_URL = (
+    "https://www.ssga.com/us/en/intermediary/etfs/"
+    "state-street-spdr-sp-500-etf-trust-spy"
+)
+VOO_URL = "https://investor.vanguard.com/investment-products/etfs/profile/voo"
+
+
+def _holding(symbol: str, name: str, weight_pct: str) -> EtfHolding:
+    return EtfHolding(symbol=symbol, name=name, weight_pct=Decimal(weight_pct))
+
+
+def _profile(
+    *,
+    symbol: str,
+    name: str,
+    issuer: str,
+    underlying_index: str,
+    expense_ratio_pct: str,
+    holdings_count: int,
+    inception_date: date,
+    facts_as_of: date,
+    holdings_as_of: date,
+    top_holdings: list[EtfHolding],
+    source_url: str,
+    holdings_source_url: str,
+) -> EtfProfile:
+    coverage = sum((holding.weight_pct for holding in top_holdings), Decimal("0"))
+    return EtfProfile(
+        symbol=symbol,
+        name=name,
+        issuer=issuer,
+        underlying_index=underlying_index,
+        expense_ratio_pct=Decimal(expense_ratio_pct),
+        holdings_count=holdings_count,
+        inception_date=inception_date,
+        facts_as_of=facts_as_of,
+        holdings_as_of=holdings_as_of,
+        top_holdings_coverage_pct=coverage,
+        top_holdings=top_holdings,
+        source_url=source_url,
+        holdings_source_url=holdings_source_url,
+    )
+
+
+ETF_PROFILES = {
+    "QQQM": _profile(
+        symbol="QQQM",
+        name="Invesco NASDAQ 100 ETF",
+        issuer="Invesco",
+        underlying_index="Nasdaq-100 Index",
+        expense_ratio_pct="0.15",
+        holdings_count=102,
+        inception_date=date(2020, 10, 13),
+        facts_as_of=date(2026, 6, 30),
+        holdings_as_of=date(2026, 2, 28),
+        top_holdings=[
+            _holding("NVDA", "NVIDIA", "8.40"),
+            _holding("AAPL", "Apple", "7.61"),
+            _holding("MSFT", "Microsoft", "5.69"),
+            _holding("AMZN", "Amazon", "4.38"),
+            _holding("TSLA", "Tesla", "3.92"),
+            _holding("META", "Meta Platforms A", "3.71"),
+            _holding("GOOGL", "Alphabet A", "3.54"),
+            _holding("WMT", "Walmart", "3.37"),
+            _holding("GOOG", "Alphabet C", "3.28"),
+            _holding("AVGO", "Broadcom", "2.94"),
+        ],
+        source_url=INVESCO_SUITE_URL,
+        holdings_source_url=QQQM_HOLDINGS_URL,
+    ),
+    "QQQ": _profile(
+        symbol="QQQ",
+        name="Invesco QQQ",
+        issuer="Invesco",
+        underlying_index="Nasdaq-100 Index",
+        expense_ratio_pct="0.18",
+        holdings_count=102,
+        inception_date=date(1999, 3, 10),
+        facts_as_of=date(2026, 3, 31),
+        holdings_as_of=date(2026, 3, 31),
+        top_holdings=[
+            _holding("NVDA", "NVIDIA", "8.67"),
+            _holding("AAPL", "Apple", "7.62"),
+            _holding("MSFT", "Microsoft", "5.62"),
+            _holding("AMZN", "Amazon", "4.58"),
+            _holding("TSLA", "Tesla", "3.80"),
+            _holding("META", "Meta Platforms A", "3.45"),
+            _holding("WMT", "Walmart", "3.43"),
+            _holding("GOOGL", "Alphabet A", "3.43"),
+            _holding("GOOG", "Alphabet C", "3.19"),
+            _holding("AVGO", "Broadcom", "3.00"),
+        ],
+        source_url=INVESCO_SUITE_URL,
+        holdings_source_url=QQQ_HOLDINGS_URL,
+    ),
+    "SPY": _profile(
+        symbol="SPY",
+        name="State Street SPDR S&P 500 ETF Trust",
+        issuer="State Street",
+        underlying_index="S&P 500 Index",
+        expense_ratio_pct="0.0945",
+        holdings_count=504,
+        inception_date=date(1993, 1, 22),
+        facts_as_of=date(2026, 7, 30),
+        holdings_as_of=date(2026, 7, 29),
+        top_holdings=[
+            _holding("AAPL", "Apple", "7.89"),
+            _holding("NVDA", "NVIDIA", "7.31"),
+            _holding("MSFT", "Microsoft", "4.61"),
+            _holding("AMZN", "Amazon", "3.53"),
+            _holding("GOOGL", "Alphabet A", "3.14"),
+            _holding("AVGO", "Broadcom", "2.79"),
+            _holding("GOOG", "Alphabet C", "2.52"),
+            _holding("META", "Meta Platforms A", "2.04"),
+            _holding("LLY", "Eli Lilly", "1.52"),
+            _holding("BRK.B", "Berkshire Hathaway B", "1.48"),
+        ],
+        source_url=SPY_URL,
+        holdings_source_url=SPY_URL,
+    ),
+    "VOO": _profile(
+        symbol="VOO",
+        name="Vanguard S&P 500 ETF",
+        issuer="Vanguard",
+        underlying_index="S&P 500 Index",
+        expense_ratio_pct="0.03",
+        holdings_count=505,
+        inception_date=date(2010, 9, 7),
+        facts_as_of=date(2026, 6, 30),
+        holdings_as_of=date(2026, 5, 31),
+        top_holdings=[
+            _holding("NVDA", "NVIDIA", "7.89"),
+            _holding("AAPL", "Apple", "7.05"),
+            _holding("MSFT", "Microsoft", "5.14"),
+            _holding("AMZN", "Amazon", "4.07"),
+            _holding("GOOGL", "Alphabet A", "3.41"),
+            _holding("AVGO", "Broadcom", "3.26"),
+            _holding("GOOG", "Alphabet C", "2.71"),
+            _holding("META", "Meta Platforms A", "2.13"),
+            _holding("TSLA", "Tesla", "1.89"),
+            _holding("MU", "Micron Technology", "1.68"),
+        ],
+        source_url=VOO_URL,
+        holdings_source_url=VOO_URL,
+    ),
+}
+
+
+def list_etfs() -> EtfCatalogResponse:
+    return EtfCatalogResponse(
+        items=list(ETF_PROFILES.values()),
+        data_version=DATA_VERSION,
+        disclaimer=DISCLAIMER,
+    )
+
+
+def compare_etfs(left_symbol: str, right_symbol: str) -> EtfComparison:
+    left_key = left_symbol.strip().upper()
+    right_key = right_symbol.strip().upper()
+    if left_key == right_key:
+        raise ValueError("서로 다른 ETF 두 개를 선택해야 합니다.")
+
+    try:
+        left = ETF_PROFILES[left_key]
+        right = ETF_PROFILES[right_key]
+    except KeyError as exc:
+        raise KeyError("비교 데이터가 없는 ETF입니다.") from exc
+
+    right_holdings = {holding.symbol: holding for holding in right.top_holdings}
+    common = [
+        EtfCommonHolding(
+            symbol=holding.symbol,
+            name=holding.name,
+            left_weight_pct=holding.weight_pct,
+            right_weight_pct=right_holdings[holding.symbol].weight_pct,
+            shared_weight_pct=min(holding.weight_pct, right_holdings[holding.symbol].weight_pct),
+        )
+        for holding in left.top_holdings
+        if holding.symbol in right_holdings
+    ]
+    common.sort(key=lambda holding: holding.shared_weight_pct, reverse=True)
+    shared_weight = sum((holding.shared_weight_pct for holding in common), Decimal("0"))
+    coverage_base = min(left.top_holdings_coverage_pct, right.top_holdings_coverage_pct)
+    overlap = (
+        (shared_weight / coverage_base * Decimal("100")).quantize(Decimal("0.01"))
+        if coverage_base > 0
+        else Decimal("0")
+    )
+
+    fee_gap_pct = abs(left.expense_ratio_pct - right.expense_ratio_pct)
+    annual_fee_difference = (
+        COMPARISON_PRINCIPAL_KRW * fee_gap_pct / Decimal("100")
+    ).quantize(Decimal("1"))
+    if left.expense_ratio_pct == right.expense_ratio_pct:
+        lower_expense_symbol = None
+    elif left.expense_ratio_pct < right.expense_ratio_pct:
+        lower_expense_symbol = left.symbol
+    else:
+        lower_expense_symbol = right.symbol
+
+    same_index = left.underlying_index == right.underlying_index
+    if same_index and overlap >= Decimal("90"):
+        interpretation = (
+            "같은 지수를 추종하고 상위 구성종목도 매우 유사합니다. "
+            "장기 보유 비용과 거래량·호가를 함께 비교하세요."
+        )
+    elif overlap >= Decimal("60"):
+        interpretation = (
+            "주요 대형주 노출이 상당 부분 겹칩니다. 두 ETF를 함께 보유해도 "
+            "생각보다 분산 효과가 작을 수 있습니다."
+        )
+    else:
+        interpretation = (
+            "상위 구성종목의 겹침이 상대적으로 낮습니다. 지수 성격과 섹터 비중을 "
+            "추가로 확인하세요."
+        )
+
+    return EtfComparison(
+        left=left,
+        right=right,
+        same_underlying_index=same_index,
+        top_holdings_overlap_pct=overlap,
+        common_top_holdings_count=len(common),
+        common_top_holdings=common,
+        lower_expense_symbol=lower_expense_symbol,
+        comparison_principal_krw=COMPARISON_PRINCIPAL_KRW,
+        annual_fee_difference_krw=annual_fee_difference,
+        interpretation=interpretation,
+        formula=FORMULA,
+        data_version=DATA_VERSION,
+        disclaimer=DISCLAIMER,
+    )

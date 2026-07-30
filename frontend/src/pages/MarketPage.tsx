@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useToast } from '../app/toast';
 import ChartSection from '../components/ChartSection';
 import CompanyOverview from '../components/CompanyOverview';
+import { EtfComparisonPanel } from '../components/EtfComparisonPanel';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
 import OrderBook from '../components/OrderBook';
@@ -32,6 +33,7 @@ const PERIODS = [
   { label: '6개월', days: 126 },
   { label: '1년', days: 252 },
 ] as const;
+const COMPARABLE_ETF_SYMBOLS = new Set(['QQQM', 'QQQ', 'SPY', 'VOO']);
 
 type BrowserTab = (typeof BROWSER_TABS)[number]['key'];
 
@@ -251,6 +253,10 @@ export function MarketPage() {
   const { symbol: routeSymbol = 'QQQM' } = useParams();
   const symbol = routeSymbol.toUpperCase();
   const navigate = useNavigate();
+  const supportsEtfComparison = COMPARABLE_ETF_SYMBOLS.has(symbol);
+  const resolvedActiveTab = activeTab === 'ETF 비교' && !supportsEtfComparison
+    ? '차트'
+    : activeTab;
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchTerm(searchInput.trim()), 250);
@@ -274,14 +280,14 @@ export function MarketPage() {
   const orderBookQuery = useQuery({
     queryKey: ['orderbook', symbol],
     queryFn: () => marketApi.getOrderBook(symbol),
-    enabled: Boolean(symbol) && activeTab === '호가',
+    enabled: Boolean(symbol) && resolvedActiveTab === '호가',
     staleTime: 5_000,
-    refetchInterval: activeTab === '호가' ? 5_000 : false,
+    refetchInterval: resolvedActiveTab === '호가' ? 5_000 : false,
   });
   const overviewQuery = useQuery({
     queryKey: ['security-overview', symbol],
     queryFn: () => marketApi.getSecurityOverview(symbol),
-    enabled: Boolean(symbol) && activeTab === '기업정보',
+    enabled: Boolean(symbol) && resolvedActiveTab === '기업정보',
     staleTime: 60_000,
   });
 
@@ -360,8 +366,12 @@ export function MarketPage() {
             </div>
           </div>
           {quoteQuery.isError && <div className="data-status error"><span>현재 시세를 불러오지 못했습니다.</span><button onClick={() => quoteQuery.refetch()}>다시 시도</button></div>}
-          <div className="detail-tabs">{['차트', '호가', '기업정보'].map((tab) => <button key={tab} onClick={() => setActiveTab(tab)} className={activeTab === tab ? 'active' : ''}>{tab}</button>)}</div>
-          {activeTab === '차트' ? (
+          <div className="detail-tabs">
+            {['차트', '호가', '기업정보', ...(supportsEtfComparison ? ['ETF 비교'] : [])].map((tab) => (
+              <button key={tab} onClick={() => setActiveTab(tab)} className={resolvedActiveTab === tab ? 'active' : ''}>{tab}</button>
+            ))}
+          </div>
+          {resolvedActiveTab === '차트' ? (
             <>
               <div className="chart-toolbar">
                 <div>{PERIODS.map((item) => <button key={item.label} className={periodDays === item.days ? 'active' : ''} onClick={() => setPeriodDays(item.days)}>{item.label}</button>)}</div>
@@ -380,7 +390,7 @@ export function MarketPage() {
               </div>
               <div className="market-data-note"><Icon name="shield" size={15} /><span>시세와 일봉은 한국투자증권 Open API 기준입니다. 현재 실시간 스트림은 REST 캐시 갱신 방식이며 실제 주문은 전송하지 않습니다.</span></div>
             </>
-          ) : activeTab === '호가' ? (
+          ) : resolvedActiveTab === '호가' ? (
             <OrderBook
               data={orderBookQuery.data}
               currentPrice={currentPrice}
@@ -388,7 +398,7 @@ export function MarketPage() {
               isError={orderBookQuery.isError}
               onRetry={() => { void orderBookQuery.refetch(); }}
             />
-          ) : (
+          ) : resolvedActiveTab === '기업정보' ? (
             <CompanyOverview
               data={overviewQuery.data}
               currentPrice={currentPrice}
@@ -396,6 +406,8 @@ export function MarketPage() {
               isError={overviewQuery.isError}
               onRetry={() => { void overviewQuery.refetch(); }}
             />
+          ) : (
+            <EtfComparisonPanel key={symbol} symbol={symbol} />
           )}
         </section>
         <TradePanel key={symbol} symbol={symbol} price={currentPrice} currency={currency} />

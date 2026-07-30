@@ -156,6 +156,8 @@ API 검증과 DB check constraint 양쪽에서 제한합니다. Alembic
 - `GET /api/v1/markets/orderbooks/{symbol}`
 - `GET /api/v1/markets/overview/{symbol}`
 - `GET /api/v1/markets/exchange-rates/{base_currency}/{quote_currency}`
+- `GET /api/v1/markets/etfs`
+- `GET /api/v1/markets/etfs/compare?left=QQQM&right=QQQ`
 - `WS /api/v1/markets/ws/quotes/{symbol}`
 
 KIS 모드의 국내 현재가는 `FHKST01010100`, 해외 현재가는
@@ -172,6 +174,13 @@ USD이며, 해외 종목의 기본 거래소는 `KIS_DEFAULT_OVERSEAS_EXCHANGE`�
 공통 응답으로 정규화합니다. 호가 REST 응답은 실시간 스트림이 아닌 조회 시점
 스냅샷입니다. 기업정보는 같은 현재가 응답에서 시가·고가·저가·거래량,
 52주 범위와 PER·PBR·EPS·BPS를 국내외 공통 필드로 제공합니다.
+
+ETF 비교는 KIS 시세와 분리된 `ETF-COMPARE-2026.07` 결정론적 데이터셋을
+사용합니다. QQQM·QQQ·SPY·VOO의 운용사 공식 상품·구성종목 자료 URL과
+각 기준일을 응답에 포함합니다. 상위 구성종목 중복도는 공통 종목별 두 비중의
+최솟값 합계를 두 ETF 중 더 작은 상위 종목 표시 비중 합계로 나눠 계산합니다.
+총보수 차이는 동일한 1천만원 투자 원금의 단순 연간 비용 차이이며 수익률,
+환율, 세금과 거래비용은 포함하지 않습니다.
 
 ## 절세 계산 API
 

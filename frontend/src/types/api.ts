@@ -92,6 +92,58 @@ export interface SecurityOverview {
   as_of: string;
 }
 
+export interface EtfHolding {
+  symbol: string;
+  name: string;
+  weight_pct: string;
+}
+
+export interface EtfProfile {
+  symbol: string;
+  name: string;
+  issuer: string;
+  underlying_index: string;
+  expense_ratio_pct: string;
+  holdings_count: number;
+  inception_date: string;
+  facts_as_of: string;
+  holdings_as_of: string;
+  top_holdings_coverage_pct: string;
+  top_holdings: EtfHolding[];
+  source_url: string;
+  holdings_source_url: string;
+}
+
+export interface EtfCatalogResponse {
+  items: EtfProfile[];
+  data_version: string;
+  disclaimer: string;
+}
+
+export interface EtfCommonHolding {
+  symbol: string;
+  name: string;
+  left_weight_pct: string;
+  right_weight_pct: string;
+  shared_weight_pct: string;
+}
+
+export interface EtfComparison {
+  left: EtfProfile;
+  right: EtfProfile;
+  same_underlying_index: boolean;
+  top_holdings_overlap_pct: string;
+  common_top_holdings_count: number;
+  common_top_holdings: EtfCommonHolding[];
+  lower_expense_symbol: string | null;
+  comparison_principal_krw: string;
+  annual_fee_difference_krw: string;
+  interpretation: string;
+  formula: string;
+  data_version: string;
+  disclaimer: string;
+}
+
 export interface PaperOrderRequest {
   symbol: string;
   side: 'buy' | 'sell';

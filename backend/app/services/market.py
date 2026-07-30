@@ -79,6 +79,36 @@ class MockMarketDataProvider:
                 market_open=True,
                 as_of=now,
             ),
+            "QQQ": Quote(
+                symbol="QQQ",
+                name="인베스코 QQQ",
+                currency="USD",
+                price=Decimal("612.45"),
+                change=Decimal("5.18"),
+                change_rate=Decimal("0.85"),
+                market_open=True,
+                as_of=now,
+            ),
+            "SPY": Quote(
+                symbol="SPY",
+                name="SPDR S&P 500 ETF",
+                currency="USD",
+                price=Decimal("729.46"),
+                change=Decimal("-10.84"),
+                change_rate=Decimal("-1.46"),
+                market_open=True,
+                as_of=now,
+            ),
+            "VOO": Quote(
+                symbol="VOO",
+                name="뱅가드 S&P 500 ETF",
+                currency="USD",
+                price=Decimal("671.20"),
+                change=Decimal("-9.82"),
+                change_rate=Decimal("-1.44"),
+                market_open=True,
+                as_of=now,
+            ),
             "005930": Quote(
                 symbol="005930",
                 name="삼성전자",
@@ -192,7 +222,7 @@ class MockMarketDataProvider:
             symbol=quote.symbol,
             name=quote.name,
             market="KRX" if is_domestic else "NASDAQ",
-            asset_type="etf" if quote.symbol in {"QQQM", "360750"} else "stock",
+            asset_type="etf" if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"} else "stock",
             currency=quote.currency,
             open=quote.price - quote.change / Decimal("2"),
             high=quote.price * Decimal("1.015"),
@@ -200,10 +230,18 @@ class MockMarketDataProvider:
             volume=Decimal("1250000"),
             week_52_high=quote.price * Decimal("1.24"),
             week_52_low=quote.price * Decimal("0.72"),
-            per=None if quote.symbol in {"QQQM", "360750"} else Decimal("24.8"),
-            pbr=None if quote.symbol in {"QQQM", "360750"} else Decimal("3.2"),
-            eps=None if quote.symbol in {"QQQM", "360750"} else quote.price / Decimal("24.8"),
-            bps=None if quote.symbol in {"QQQM", "360750"} else quote.price / Decimal("3.2"),
+            per=None if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"} else Decimal("24.8"),
+            pbr=None if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"} else Decimal("3.2"),
+            eps=(
+                None
+                if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"}
+                else quote.price / Decimal("24.8")
+            ),
+            bps=(
+                None
+                if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"}
+                else quote.price / Decimal("3.2")
+            ),
             source="mock",
             as_of=datetime.now(UTC),
         )

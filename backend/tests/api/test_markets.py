@@ -47,6 +47,63 @@ def test_instrument_search_filters_domestic_and_etf() -> None:
     assert etfs.json()["items"][0]["asset_type"] == "etf"
 
 
+def test_etf_catalog_exposes_versioned_official_snapshots() -> None:
+    response = client.get("/api/v1/markets/etfs")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data_version"] == "ETF-COMPARE-2026.07"
+    assert {item["symbol"] for item in payload["items"]} == {"QQQM", "QQQ", "SPY", "VOO"}
+    assert all(item["source_url"].startswith("https://") for item in payload["items"])
+    assert all(float(item["top_holdings_coverage_pct"]) > 0 for item in payload["items"])
+
+
+def test_etf_comparison_calculates_overlap_and_fee_difference() -> None:
+    response = client.get(
+        "/api/v1/markets/etfs/compare",
+        params={"left": "qqqm", "right": "QQQ"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["same_underlying_index"] is True
+    assert float(payload["top_holdings_overlap_pct"]) > 95
+    assert payload["common_top_holdings_count"] == 10
+    assert payload["lower_expense_symbol"] == "QQQM"
+    assert payload["comparison_principal_krw"] == "10000000"
+    assert payload["annual_fee_difference_krw"] == "3000"
+    assert "최솟값" in payload["formula"]
+
+
+def test_etf_comparison_warns_about_cross_index_overlap() -> None:
+    response = client.get(
+        "/api/v1/markets/etfs/compare",
+        params={"left": "QQQM", "right": "SPY"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["same_underlying_index"] is False
+    assert 0 < float(payload["top_holdings_overlap_pct"]) < 100
+    assert payload["common_top_holdings_count"] >= 7
+
+
+def test_etf_comparison_rejects_same_or_unsupported_symbols() -> None:
+    same = client.get(
+        "/api/v1/markets/etfs/compare",
+        params={"left": "QQQM", "right": "QQQM"},
+    )
+    unsupported = client.get(
+        "/api/v1/markets/etfs/compare",
+        params={"left": "QQQM", "right": "UNKNOWN"},
+    )
+
+    assert same.status_code == 400
+    assert same.json()["detail"] == "서로 다른 ETF 두 개를 선택해야 합니다."
+    assert unsupported.status_code == 404
+    assert unsupported.json()["detail"] == "비교 데이터가 없는 ETF입니다."
+
+
 def test_mock_candles_are_sorted_and_have_requested_limit() -> None:
     response = client.get("/api/v1/markets/candles/QQQM", params={"limit": 22})
 

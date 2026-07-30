@@ -5,15 +5,36 @@ from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconn
 from app.core.exceptions import MarketDataError
 from app.schemas.market import (
     CandleSeries,
+    EtfCatalogResponse,
+    EtfComparison,
     ExchangeRate,
     InstrumentSearchResponse,
     OrderBook,
     Quote,
     SecurityOverview,
 )
+from app.services.etf import compare_etfs, list_etfs
 from app.services.market import instrument_catalog, market_data_service
 
 router = APIRouter(prefix="/markets", tags=["markets"])
+
+
+@router.get("/etfs", response_model=EtfCatalogResponse)
+async def get_etfs() -> EtfCatalogResponse:
+    return list_etfs()
+
+
+@router.get("/etfs/compare", response_model=EtfComparison)
+async def get_etf_comparison(
+    left: str = Query(min_length=1, max_length=15),
+    right: str = Query(min_length=1, max_length=15),
+) -> EtfComparison:
+    try:
+        return compare_etfs(left, right)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=exc.args[0]) from exc
 
 
 @router.get("/quotes/{symbol}", response_model=Quote)

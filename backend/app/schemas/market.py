@@ -97,3 +97,55 @@ class SecurityOverview(BaseModel):
     bps: Decimal | None = None
     source: Literal["mock", "kis"]
     as_of: datetime
+
+
+class EtfHolding(BaseModel):
+    symbol: str
+    name: str
+    weight_pct: Decimal
+
+
+class EtfProfile(BaseModel):
+    symbol: str
+    name: str
+    issuer: str
+    underlying_index: str
+    expense_ratio_pct: Decimal
+    holdings_count: int
+    inception_date: date
+    facts_as_of: date
+    holdings_as_of: date
+    top_holdings_coverage_pct: Decimal
+    top_holdings: list[EtfHolding]
+    source_url: str
+    holdings_source_url: str
+
+
+class EtfCatalogResponse(BaseModel):
+    items: list[EtfProfile]
+    data_version: str
+    disclaimer: str
+
+
+class EtfCommonHolding(BaseModel):
+    symbol: str
+    name: str
+    left_weight_pct: Decimal
+    right_weight_pct: Decimal
+    shared_weight_pct: Decimal
+
+
+class EtfComparison(BaseModel):
+    left: EtfProfile
+    right: EtfProfile
+    same_underlying_index: bool
+    top_holdings_overlap_pct: Decimal
+    common_top_holdings_count: int
+    common_top_holdings: list[EtfCommonHolding]
+    lower_expense_symbol: str | None
+    comparison_principal_krw: Decimal
+    annual_fee_difference_krw: Decimal
+    interpretation: str
+    formula: str
+    data_version: str
+    disclaimer: str
