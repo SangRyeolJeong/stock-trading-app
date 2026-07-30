@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useToast } from '../app/toast';
 import ChartSection from '../components/ChartSection';
 import CompanyOverview from '../components/CompanyOverview';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
 import OrderBook from '../components/OrderBook';
+import {
+  resetMarketFavorites,
+  toggleMarketFavorite,
+  useMarketFavorites,
+} from '../data/marketFavorites';
 import { useQuote } from '../hooks/useQuote';
 import { useQuoteStream } from '../hooks/useQuoteStream';
 import { marketApi, type MarketFilter } from '../services/marketApi';
@@ -14,7 +19,6 @@ import { paperApi } from '../services/paperApi';
 import type { Instrument } from '../types/api';
 import { formatChangeRate, formatQuotePrice, formatUpdatedAt } from '../utils/format';
 
-const DEFAULT_FAVORITES = ['QQQM', '005930', 'AAPL', 'NVDA', '360750'];
 const BROWSER_TABS = [
   { key: 'favorites', label: '관심' },
   { key: 'domestic', label: '국내' },
@@ -47,16 +51,8 @@ function formatVolume(value: string | undefined) {
   }).format(number);
 }
 
-function loadFavorites() {
-  try {
-    const stored = window.localStorage.getItem('moa-market-favorites');
-    const parsed = stored ? JSON.parse(stored) as unknown : null;
-    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
-      ? parsed
-      : DEFAULT_FAVORITES;
-  } catch {
-    return DEFAULT_FAVORITES;
-  }
+function isBrowserTab(value: string | null): value is BrowserTab {
+  return BROWSER_TABS.some((tab) => tab.key === value);
 }
 
 function TradePanel({
@@ -246,10 +242,12 @@ function InstrumentRow({
 export function MarketPage() {
   const [periodDays, setPeriodDays] = useState(66);
   const [activeTab, setActiveTab] = useState('차트');
-  const [browserTab, setBrowserTab] = useState<BrowserTab>('favorites');
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [favorites, setFavorites] = useState<string[]>(loadFavorites);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const favorites = useMarketFavorites();
+  const tabParam = searchParams.get('tab');
+  const browserTab: BrowserTab = isBrowserTab(tabParam) ? tabParam : 'favorites';
   const { symbol: routeSymbol = 'QQQM' } = useParams();
   const symbol = routeSymbol.toUpperCase();
   const navigate = useNavigate();
@@ -258,10 +256,6 @@ export function MarketPage() {
     const timer = window.setTimeout(() => setSearchTerm(searchInput.trim()), 250);
     return () => window.clearTimeout(timer);
   }, [searchInput]);
-
-  useEffect(() => {
-    window.localStorage.setItem('moa-market-favorites', JSON.stringify(favorites));
-  }, [favorites]);
 
   const marketFilter: MarketFilter = browserTab === 'favorites' ? 'all' : browserTab;
   const instrumentsQuery = useQuery({
@@ -310,33 +304,44 @@ export function MarketPage() {
       ? 'KIS 종목 마스터 캐시'
       : '기본 종목 목록';
 
-  const toggleFavorite = (target: string) => {
-    setFavorites((current) => current.includes(target)
-      ? current.filter((item) => item !== target)
-      : [...current, target]);
+  const selectBrowserTab = (tab: BrowserTab) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('tab', tab);
+      return next;
+    }, { replace: true });
   };
+  const instrumentCount = browserTab === 'favorites' && !searchTerm
+    ? displayedInstruments.length
+    : instrumentsQuery.data?.total ?? 0;
+  const emptyFavorites = browserTab === 'favorites' && !searchTerm && favorites.length === 0;
 
   return (
     <PageContainer className="market-page">
       <div className="market-layout">
         <aside className="stock-browser card">
-          <div className="browser-title"><div><h2>종목 탐색</h2><small>{dataSourceLabel}</small></div><span>{instrumentsQuery.data?.total ?? 0}</span></div>
+          <div className="browser-title"><div><h2>종목 탐색</h2><small>{dataSourceLabel}</small></div><span>{instrumentCount}</span></div>
           <div className="browser-search"><Icon name="search" size={16} /><input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="종목명·티커 검색" /></div>
           <div className="browser-tabs">
-            {BROWSER_TABS.map((tab) => <button key={tab.key} className={browserTab === tab.key ? 'active' : ''} onClick={() => setBrowserTab(tab.key)}>{tab.label}</button>)}
+            {BROWSER_TABS.map((tab) => <button key={tab.key} className={browserTab === tab.key ? 'active' : ''} onClick={() => selectBrowserTab(tab.key)}>{tab.label}</button>)}
           </div>
           <div className="browser-list">
             {instrumentsQuery.isLoading && <div className="browser-state">종목 목록을 준비하고 있어요…</div>}
             {instrumentsQuery.isError && <div className="browser-state error">종목 목록을 불러오지 못했습니다.<button onClick={() => instrumentsQuery.refetch()}>다시 시도</button></div>}
-            {!instrumentsQuery.isLoading && displayedInstruments.length === 0 && <div className="browser-state">검색 결과가 없습니다.</div>}
+            {!instrumentsQuery.isLoading && displayedInstruments.length === 0 && (
+              <div className="browser-state">
+                {emptyFavorites ? '관심 종목이 없습니다.' : '검색 결과가 없습니다.'}
+                {emptyFavorites && <button onClick={resetMarketFavorites}>기본 관심종목 복원</button>}
+              </div>
+            )}
             {displayedInstruments.map((instrument) => (
               <InstrumentRow
                 key={`${instrument.exchange_code}-${instrument.symbol}`}
                 instrument={instrument}
                 selected={instrument.symbol === symbol}
                 favorite={favorites.includes(instrument.symbol)}
-                onSelect={() => navigate(`/market/${instrument.symbol}`)}
-                onToggleFavorite={() => toggleFavorite(instrument.symbol)}
+                onSelect={() => navigate(`/market/${instrument.symbol}?tab=${browserTab}`)}
+                onToggleFavorite={() => toggleMarketFavorite(instrument.symbol)}
               />
             ))}
           </div>
@@ -346,7 +351,7 @@ export function MarketPage() {
           <div className="stock-header">
             <div className="stock-identity">
               <span className="stock-logo large">{symbol.slice(0, 1)}</span>
-              <div><span>{quote?.name ?? selectedInstrument?.name ?? symbol} · {exchangeName}</span><h1>{symbol} <button className={favorites.includes(symbol) ? 'favorite-active' : ''} onClick={() => toggleFavorite(symbol)}>{favorites.includes(symbol) ? '★' : '☆'}</button></h1></div>
+              <div><span>{quote?.name ?? selectedInstrument?.name ?? symbol} · {exchangeName}</span><h1>{symbol} <button className={favorites.includes(symbol) ? 'favorite-active' : ''} onClick={() => toggleMarketFavorite(symbol)}>{favorites.includes(symbol) ? '★' : '☆'}</button></h1></div>
             </div>
             <div className="live-price">
               <strong>{quoteQuery.isLoading ? '불러오는 중' : currentPrice > 0 ? formatQuotePrice(currentPrice, currency) : '—'}</strong>

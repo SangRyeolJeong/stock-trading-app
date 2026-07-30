@@ -30,6 +30,7 @@ const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { path: '/', element: <HomePage /> },
+      { path: '/market', element: lazyRoute(<MarketPage />) },
       { path: '/market/:symbol', element: lazyRoute(<MarketPage />) },
       { path: '/tax-planner', element: <TaxPlannerPage /> },
       { path: '/strategy', element: <StrategyPage /> },

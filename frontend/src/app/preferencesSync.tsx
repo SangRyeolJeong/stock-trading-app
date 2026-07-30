@@ -10,6 +10,7 @@ import {
   setUserPreferencesScope,
   useUserPreferences,
 } from '../data/userPreferences';
+import { setMarketFavoritesScope } from '../data/marketFavorites';
 import { ApiError } from '../services/apiClient';
 import { preferencesApi } from '../services/preferencesApi';
 import { useAuth } from './authContext';
@@ -38,12 +39,14 @@ export function PreferencesSync({ children }: PropsWithChildren) {
     lastSynced.current = null;
 
     if (!userId) {
+      setMarketFavoritesScope(null);
       setUserPreferencesScope(null);
       return () => {
         cancelled = true;
       };
     }
 
+    setMarketFavoritesScope(userId);
     const scopedPreferences = setUserPreferencesScope(userId);
 
     const hydrate = async () => {

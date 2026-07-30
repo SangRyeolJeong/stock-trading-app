@@ -2,6 +2,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
+import { useMarketFavorites } from '../data/marketFavorites';
 import { useUserPreferences } from '../data/userPreferences';
 import { marketApi } from '../services/marketApi';
 import { paperApi } from '../services/paperApi';
@@ -9,20 +10,7 @@ import { taxApi } from '../services/taxApi';
 import type { PortfolioSummary } from '../types/api';
 import { formatChangeRate, formatQuotePrice } from '../utils/format';
 
-const DEFAULT_FAVORITES = ['QQQM', '005930', 'AAPL', 'NVDA', '360750'];
 const ALLOCATION_COLORS = ['#5578ff', '#6cd2b8', '#ffb15c', '#9a7cff', '#4f98d8'];
-
-function loadFavorites() {
-  try {
-    const stored = window.localStorage.getItem('moa-market-favorites');
-    const parsed = stored ? JSON.parse(stored) as unknown : null;
-    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
-      ? parsed
-      : DEFAULT_FAVORITES;
-  } catch {
-    return DEFAULT_FAVORITES;
-  }
-}
 
 function getTodayLabel() {
   return new Intl.DateTimeFormat('ko-KR', {
@@ -86,7 +74,7 @@ function getPortfolioMetrics(portfolio: PortfolioSummary | undefined, usdKrwRate
 export function HomePage() {
   const navigate = useNavigate();
   const preferences = useUserPreferences();
-  const favorites = loadFavorites();
+  const favorites = useMarketFavorites();
   const visibleFavorites = favorites.slice(0, 4);
   const portfolioQuery = useQuery({
     queryKey: ['paper-portfolio', 'demo-account'],
@@ -259,7 +247,7 @@ export function HomePage() {
         <article className="card watch-card">
           <div className="card-heading">
             <div><span className="label">관심 종목</span><p>{watchlistLoading ? '시세 갱신 중' : '최근 시세'}</p></div>
-            <button className="add-button" onClick={() => navigate('/market')}><Icon name="plus" size={15} /> 편집</button>
+            <button className="add-button" onClick={() => navigate('/market?tab=favorites')}><Icon name="plus" size={15} /> 편집</button>
           </div>
           <div className="watch-list">
             {quoteQueries.map((query, index) => {
@@ -276,7 +264,7 @@ export function HomePage() {
             {visibleFavorites.length === 0 && <div className="dashboard-empty">관심 종목을 추가해 보세요.</div>}
             {watchlistError && <div className="dashboard-inline-error">시세 서버 연결을 확인해 주세요.</div>}
           </div>
-          <button className="text-button" onClick={() => navigate(`/market/${visibleFavorites[0] ?? 'QQQM'}`)}>관심 종목 전체보기 <Icon name="chevron" size={14} /></button>
+          <button className="text-button" onClick={() => navigate(`/market/${visibleFavorites[0] ?? 'QQQM'}?tab=favorites`)}>관심 종목 전체보기 <Icon name="chevron" size={14} /></button>
         </article>
 
         <article className="card insight-card">
