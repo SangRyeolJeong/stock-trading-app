@@ -9,6 +9,7 @@ import { marketApi } from '../services/marketApi';
 import { paperApi } from '../services/paperApi';
 import { strategyApi } from '../services/strategyApi';
 import type { PaperPosition } from '../types/api';
+import { calculateWholeShareOrderDraft } from '../utils/orderDraft';
 import { calculateRebalancingPlan } from '../utils/rebalancing';
 
 const colors = ['#5578ff', '#6cd2b8', '#ffb15c', '#9a7cff', '#4f98d8'];
@@ -144,6 +145,22 @@ export function PortfolioPage() {
     defensive: '채권·방어 자산',
     cash: '현금성 자산',
   };
+  const equityRebalancing = rebalancingPlan?.items.find(
+    (item) => item.category === 'equity',
+  );
+  const executionQuoteQuery = useQuery({
+    queryKey: ['quote', 'QQQM', 'rebalancing-draft'],
+    queryFn: () => marketApi.getQuote('QQQM'),
+    enabled: Number(equityRebalancing?.suggestedContributionKrw ?? 0) > 0,
+    staleTime: 30_000,
+  });
+  const orderDraft = equityRebalancing && executionQuoteQuery.data && usdKrwRate > 0
+    ? calculateWholeShareOrderDraft({
+        allocationKrw: equityRebalancing.suggestedContributionKrw,
+        priceUsd: Number(executionQuoteQuery.data.price),
+        usdKrwRate,
+      })
+    : null;
   const filteredOrders = (ordersQuery.data ?? []).filter(
     (order) => orderFilter === 'all' || order.side === orderFilter,
   );
@@ -280,6 +297,42 @@ export function PortfolioPage() {
               현재 지원하는 주식·ETF 보유분은 주식성 자산으로 분류했습니다. 매도 없이 새 투자금만
               부족한 자산군에 배분하는 단순 계산이며 실제 상품 선택은 전략 화면에서 확인하세요.
             </p>
+            {equityRebalancing && equityRebalancing.suggestedContributionKrw > 0 && (
+              <section className="execution-draft">
+                <div>
+                  <span className="stock-logo">Q</span>
+                  <p>
+                    <small>주식성 자산 실행 예시 · 확정 추천 아님</small>
+                    <strong>QQQM 정수 수량 모의주문 초안</strong>
+                  </p>
+                </div>
+                {executionQuoteQuery.isError ? (
+                  <button onClick={() => executionQuoteQuery.refetch()}>시세 다시 불러오기</button>
+                ) : orderDraft ? (
+                  <>
+                    <dl>
+                      <div><dt>배분 제안</dt><dd>{formatMoney(equityRebalancing.suggestedContributionKrw, 'KRW')}</dd></div>
+                      <div><dt>현재가 환산</dt><dd>{formatMoney(orderDraft.unitPriceKrw, 'KRW')}</dd></div>
+                      <div><dt>주문 초안</dt><dd>{orderDraft.quantity}주</dd></div>
+                      <div><dt>수수료 포함 후 잔액</dt><dd>{formatMoney(orderDraft.remainingKrw, 'KRW')}</dd></div>
+                    </dl>
+                    <button
+                      className="primary-button"
+                      disabled={orderDraft.quantity < 1}
+                      onClick={() => navigate(`/market/QQQM?tab=etf&draftQuantity=${orderDraft.quantity}`)}
+                    >
+                      {orderDraft.quantity > 0
+                        ? `${orderDraft.quantity}주 주문창으로`
+                        : '1주 금액까지 모으기'}
+                      <Icon name="chevron" size={14} />
+                    </button>
+                  </>
+                ) : <span className="execution-loading">QQQM 현재가와 환율로 수량을 계산하는 중…</span>}
+                <small className="execution-caution">
+                  환산 수량은 참고용입니다. 모의주문은 자동 환전하지 않으므로 주문창에서 USD 잔액을 별도로 확인합니다.
+                </small>
+              </section>
+            )}
           </>
         ) : <div className="ledger-empty compact">현재 원장과 맞춤 목표 비중을 연결하는 중입니다…</div>}
       </article>

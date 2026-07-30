@@ -62,14 +62,16 @@ function TradePanel({
   symbol,
   price,
   currency,
+  initialQuantity,
 }: {
   symbol: string;
   price: number;
   currency: 'KRW' | 'USD';
+  initialQuantity: number;
 }) {
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(initialQuantity);
   const [customLimitPrice, setCustomLimitPrice] = useState<number | null>(null);
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -375,6 +377,10 @@ export function MarketPage() {
     ? displayedInstruments.length
     : instrumentsQuery.data?.total ?? 0;
   const emptyFavorites = browserTab === 'favorites' && !searchTerm && favorites.length === 0;
+  const draftQuantity = Math.max(
+    1,
+    Math.min(100_000, Math.floor(Number(searchParams.get('draftQuantity')) || 1)),
+  );
 
   return (
     <PageContainer className="market-page">
@@ -464,7 +470,13 @@ export function MarketPage() {
             <EtfComparisonPanel key={symbol} symbol={symbol} />
           )}
         </section>
-        <TradePanel key={symbol} symbol={symbol} price={currentPrice} currency={currency} />
+        <TradePanel
+          key={symbol}
+          symbol={symbol}
+          price={currentPrice}
+          currency={currency}
+          initialQuantity={draftQuantity}
+        />
       </div>
     </PageContainer>
   );

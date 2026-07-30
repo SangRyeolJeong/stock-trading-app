@@ -680,6 +680,19 @@ button, .card, .nav-item { -webkit-tap-highlight-color: transparent; }
 .weight-comparison b { display: block; height: 100%; border-radius: inherit; background: #5c7ffc; }
 .rebalancing-note { display: flex; align-items: flex-start; gap: 6px; margin: 12px 0 0; color: #6f7d92; font-size: 8px; line-height: 1.55; }
 .ledger-empty.compact { min-height: 100px; }
+.execution-draft { display: grid; grid-template-columns: minmax(210px, .8fr) minmax(360px, 1.4fr) auto; align-items: center; gap: 16px; margin-top: 14px; border: 1px solid #2b3545; border-radius: 11px; background: #111823; padding: 13px; }
+.execution-draft > div:first-child { display: flex; align-items: center; gap: 9px; }
+.execution-draft p { display: flex; min-width: 0; flex-direction: column; gap: 3px; margin: 0; }
+.execution-draft p small { color: #708097; font-size: 7px; }
+.execution-draft p strong { color: #dfe7f3; font-size: 10px; }
+.execution-draft dl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0; }
+.execution-draft dl div { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.execution-draft dt { color: #65738a; font-size: 7px; }
+.execution-draft dd { overflow: hidden; margin: 0; color: #cbd5e4; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.execution-draft > .primary-button { min-width: 130px; justify-content: center; }
+.execution-draft > .primary-button:disabled { cursor: not-allowed; opacity: .55; }
+.execution-loading { color: #718096; font-size: 8px; text-align: center; }
+.execution-caution { grid-column: 1 / -1; color: #647187; font-size: 7px; line-height: 1.45; }
 .ledger-count { color: #687487; font-size: 9px; }
 .order-history-card { margin-bottom: 30px; }
 .order-history-head, .order-history-row { display: grid; grid-template-columns: 1.25fr .65fr .45fr .55fr .5fr .95fr .65fr .8fr 42px; align-items: center; gap: 10px; }
@@ -821,6 +834,7 @@ button, .card, .nav-item { -webkit-tap-highlight-color: transparent; }
   .page { min-height: calc(100vh - 60px); padding: 22px 16px 35px; }
   .dashboard-grid, .tax-grid, .strategy-layout, .portfolio-summary, .portfolio-guidance, .settings-layout { grid-template-columns: 1fr; }
   .rebalancing-head, .rebalancing-row { grid-template-columns: 1fr 1.2fr .7fr 1fr; }
+  .execution-draft { grid-template-columns: 1fr; }
   .watch-card, .insight-card, .allocation-card { grid-column: auto; grid-row: auto; }
   .market-page { height: auto; overflow: visible; padding: 12px; }
   .market-layout { height: auto; grid-template-columns: 1fr; }
