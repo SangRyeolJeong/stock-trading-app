@@ -40,6 +40,10 @@ function ProfileCard({
         {lowerExpense && <em>낮은 보수</em>}
       </div>
       <p>{profile.name}</p>
+      <div className="etf-listing-tags">
+        <span>{profile.listing_country === 'KR' ? '한국 상장' : '미국 상장'}</span>
+        <span>{profile.trading_currency} 거래</span>
+      </div>
       <dl>
         <div><dt>기초지수</dt><dd>{profile.underlying_index}</dd></div>
         <div><dt>총보수</dt><dd>{formatPercent(profile.expense_ratio_pct)}</dd></div>
@@ -219,6 +223,12 @@ export function EtfComparisonPanel({ symbol }: { symbol: string }) {
               </button>
             </div>
             <small>{comparison.disclaimer}</small>
+            {comparison.left.listing_country !== comparison.right.listing_country && (
+              <small className="cross-listing-note">
+                상장국이 다른 비교입니다. 국내상장 해외 ETF와 미국상장 ETF의 과세·환전·
+                거래시간 구조는 동일하지 않습니다.
+              </small>
+            )}
           </section>
         </>
       )}

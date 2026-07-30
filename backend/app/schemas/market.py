@@ -109,6 +109,8 @@ class EtfProfile(BaseModel):
     symbol: str
     name: str
     issuer: str
+    listing_country: Literal["US", "KR"]
+    trading_currency: Literal["USD", "KRW"]
     underlying_index: str
     expense_ratio_pct: Decimal
     holdings_count: int

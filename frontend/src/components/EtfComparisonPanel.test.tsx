@@ -15,11 +15,13 @@ vi.mock('../services/marketApi', () => ({
   },
 }));
 
-function profile(symbol: 'QQQM' | 'QQQ', expenseRatio: string): EtfProfile {
+function profile(symbol: string, expenseRatio: string): EtfProfile {
   return {
     symbol,
     name: symbol === 'QQQM' ? 'Invesco NASDAQ 100 ETF' : 'Invesco QQQ',
     issuer: 'Invesco',
+    listing_country: 'US',
+    trading_currency: 'USD',
     underlying_index: 'Nasdaq-100 Index',
     expense_ratio_pct: expenseRatio,
     holdings_count: 102,
@@ -83,5 +85,60 @@ describe('EtfComparisonPanel', () => {
     expect(screen.getByText('같은 기초지수')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'QQQ · Nasdaq-100 Index' })).toBeInTheDocument();
     expect(compareEtfsMock).toHaveBeenCalledWith('QQQM', 'QQQ');
+  });
+
+  it('labels cross-listed comparisons and shows the tax and currency caution', async () => {
+    const kodex = {
+      ...profile('379810', '0.0062'),
+      name: 'KODEX 미국나스닥100',
+      issuer: '삼성자산운용',
+      listing_country: 'KR' as const,
+      trading_currency: 'KRW' as const,
+    };
+    const qqqm = profile('QQQM', '0.15');
+    const comparison: EtfComparison = {
+      left: kodex,
+      right: qqqm,
+      same_underlying_index: true,
+      top_holdings_overlap_pct: '92.00',
+      common_top_holdings_count: 1,
+      common_top_holdings: [{
+        symbol: 'NVDA',
+        name: 'NVIDIA',
+        left_weight_pct: '7.66',
+        right_weight_pct: '8.40',
+        shared_weight_pct: '7.66',
+      }],
+      lower_expense_symbol: '379810',
+      comparison_principal_krw: '10000000',
+      annual_fee_difference_krw: '14380',
+      interpretation: '상장국이 다른 같은 지수 비교',
+      formula: '중복도 계산식',
+      data_version: 'ETF-COMPARE-2026.07',
+      disclaimer: '한국·미국 상장 ETF는 세금·환전·거래시간이 다릅니다.',
+    };
+    getEtfsMock.mockResolvedValue({
+      items: [kodex, qqqm],
+      data_version: comparison.data_version,
+      disclaimer: comparison.disclaimer,
+    });
+    compareEtfsMock.mockResolvedValue(comparison);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <EtfComparisonPanel symbol="379810" />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('92%')).toBeInTheDocument();
+    expect(screen.getByText('한국 상장')).toBeInTheDocument();
+    expect(screen.getByText('KRW 거래')).toBeInTheDocument();
+    expect(screen.getByText(/과세·환전·/)).toBeInTheDocument();
+    expect(compareEtfsMock).toHaveBeenCalledWith('379810', 'QQQM');
   });
 });

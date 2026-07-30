@@ -1,5 +1,6 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
+from typing import Literal
 
 from app.schemas.market import (
     EtfCatalogResponse,
@@ -11,8 +12,11 @@ from app.schemas.market import (
 
 DATA_VERSION = "ETF-COMPARE-2026.07"
 COMPARISON_PRINCIPAL_KRW = Decimal("10000000")
+MAX_SNAPSHOT_AGE_DAYS = 365
 DISCLAIMER = (
     "운용사 공식 자료의 기준일 스냅샷을 사용한 교육용 비교입니다. "
+    "표시 총보수는 기타비용·매매비용을 포함한 실제 부담비용과 다를 수 있고, "
+    "한국·미국 상장 ETF는 세금·환전·거래시간이 다릅니다. "
     "구성종목과 보수는 변경될 수 있으므로 주문 전 최신 운용사 자료를 확인하세요."
 )
 FORMULA = (
@@ -34,6 +38,8 @@ SPY_URL = (
     "state-street-spdr-sp-500-etf-trust-spy"
 )
 VOO_URL = "https://investor.vanguard.com/investment-products/etfs/profile/voo"
+KODEX_SP500_URL = "https://www.samsungfund.com/etf/product/view.do?id=2ETFE4"
+KODEX_NASDAQ100_URL = "https://www.samsungfund.com/etf/product/view.do?id=2ETFE3"
 
 
 def _holding(symbol: str, name: str, weight_pct: str) -> EtfHolding:
@@ -45,6 +51,8 @@ def _profile(
     symbol: str,
     name: str,
     issuer: str,
+    listing_country: Literal["US", "KR"],
+    trading_currency: Literal["USD", "KRW"],
     underlying_index: str,
     expense_ratio_pct: str,
     holdings_count: int,
@@ -60,6 +68,8 @@ def _profile(
         symbol=symbol,
         name=name,
         issuer=issuer,
+        listing_country=listing_country,
+        trading_currency=trading_currency,
         underlying_index=underlying_index,
         expense_ratio_pct=Decimal(expense_ratio_pct),
         holdings_count=holdings_count,
@@ -78,6 +88,8 @@ ETF_PROFILES = {
         symbol="QQQM",
         name="Invesco NASDAQ 100 ETF",
         issuer="Invesco",
+        listing_country="US",
+        trading_currency="USD",
         underlying_index="Nasdaq-100 Index",
         expense_ratio_pct="0.15",
         holdings_count=102,
@@ -103,6 +115,8 @@ ETF_PROFILES = {
         symbol="QQQ",
         name="Invesco QQQ",
         issuer="Invesco",
+        listing_country="US",
+        trading_currency="USD",
         underlying_index="Nasdaq-100 Index",
         expense_ratio_pct="0.18",
         holdings_count=102,
@@ -128,6 +142,8 @@ ETF_PROFILES = {
         symbol="SPY",
         name="State Street SPDR S&P 500 ETF Trust",
         issuer="State Street",
+        listing_country="US",
+        trading_currency="USD",
         underlying_index="S&P 500 Index",
         expense_ratio_pct="0.0945",
         holdings_count=504,
@@ -153,6 +169,8 @@ ETF_PROFILES = {
         symbol="VOO",
         name="Vanguard S&P 500 ETF",
         issuer="Vanguard",
+        listing_country="US",
+        trading_currency="USD",
         underlying_index="S&P 500 Index",
         expense_ratio_pct="0.03",
         holdings_count=505,
@@ -174,7 +192,71 @@ ETF_PROFILES = {
         source_url=VOO_URL,
         holdings_source_url=VOO_URL,
     ),
+    "379800": _profile(
+        symbol="379800",
+        name="KODEX 미국S&P500",
+        issuer="삼성자산운용",
+        listing_country="KR",
+        trading_currency="KRW",
+        underlying_index="S&P 500 Index",
+        expense_ratio_pct="0.0062",
+        holdings_count=506,
+        inception_date=date(2021, 4, 9),
+        facts_as_of=date(2026, 7, 3),
+        holdings_as_of=date(2026, 7, 3),
+        top_holdings=[
+            _holding("NVDA", "NVIDIA", "7.34"),
+            _holding("AAPL", "Apple", "7.05"),
+            _holding("MSFT", "Microsoft", "4.51"),
+            _holding("AMZN", "Amazon", "3.69"),
+            _holding("GOOGL", "Alphabet A", "3.28"),
+            _holding("AVGO", "Broadcom", "2.65"),
+            _holding("GOOG", "Alphabet C", "2.62"),
+            _holding("META", "Meta Platforms A", "2.10"),
+            _holding("TSLA", "Tesla", "1.76"),
+        ],
+        source_url=KODEX_SP500_URL,
+        holdings_source_url=KODEX_SP500_URL,
+    ),
+    "379810": _profile(
+        symbol="379810",
+        name="KODEX 미국나스닥100",
+        issuer="삼성자산운용",
+        listing_country="KR",
+        trading_currency="KRW",
+        underlying_index="Nasdaq-100 Index",
+        expense_ratio_pct="0.0062",
+        holdings_count=105,
+        inception_date=date(2021, 4, 9),
+        facts_as_of=date(2026, 7, 8),
+        holdings_as_of=date(2026, 7, 8),
+        top_holdings=[
+            _holding("NVDA", "NVIDIA", "7.66"),
+            _holding("AAPL", "Apple", "7.33"),
+            _holding("MU", "Micron Technology", "4.70"),
+            _holding("MSFT", "Microsoft", "4.64"),
+            _holding("AMZN", "Amazon", "4.25"),
+            _holding("AMD", "Advanced Micro Devices", "3.73"),
+            _holding("GOOGL", "Alphabet A", "3.44"),
+            _holding("TSLA", "Tesla", "3.24"),
+            _holding("GOOG", "Alphabet C", "3.19"),
+            _holding("META", "Meta Platforms A", "2.93"),
+        ],
+        source_url=KODEX_NASDAQ100_URL,
+        holdings_source_url=KODEX_NASDAQ100_URL,
+    ),
 }
+
+
+def stale_etf_symbols(as_of: date | None = None) -> list[str]:
+    reference_date = as_of or date.today()
+    cutoff = reference_date - timedelta(days=MAX_SNAPSHOT_AGE_DAYS)
+    return sorted(
+        profile.symbol
+        for profile in ETF_PROFILES.values()
+        if min(profile.facts_as_of, profile.holdings_as_of) < cutoff
+        or max(profile.facts_as_of, profile.holdings_as_of) > reference_date
+    )
 
 
 def list_etfs() -> EtfCatalogResponse:
@@ -230,6 +312,7 @@ def compare_etfs(left_symbol: str, right_symbol: str) -> EtfComparison:
         lower_expense_symbol = right.symbol
 
     same_index = left.underlying_index == right.underlying_index
+    cross_listing = left.listing_country != right.listing_country
     if same_index and overlap >= Decimal("90"):
         interpretation = (
             "같은 지수를 추종하고 상위 구성종목도 매우 유사합니다. "
@@ -244,6 +327,11 @@ def compare_etfs(left_symbol: str, right_symbol: str) -> EtfComparison:
         interpretation = (
             "상위 구성종목의 겹침이 상대적으로 낮습니다. 지수 성격과 섹터 비중을 "
             "추가로 확인하세요."
+        )
+    if cross_listing:
+        interpretation += (
+            " 상장국이 달라 명목 총보수만으로 결정하지 말고 세금·환전·거래시간과 "
+            "기타비용을 함께 확인하세요."
         )
 
     return EtfComparison(

@@ -64,6 +64,8 @@ BUILTIN_INSTRUMENTS = [
     _instrument("068270", "셀트리온", "KOSPI", "KRX", "KRW"),
     _instrument("360750", "TIGER 미국S&P500", "KOSPI", "KRX", "KRW", "etf"),
     _instrument("133690", "TIGER 미국나스닥100", "KOSPI", "KRX", "KRW", "etf"),
+    _instrument("379800", "KODEX 미국S&P500", "KOSPI", "KRX", "KRW", "etf"),
+    _instrument("379810", "KODEX 미국나스닥100", "KOSPI", "KRX", "KRW", "etf"),
     _instrument("QQQM", "인베스코 나스닥 100 ETF", "NASDAQ", "NAS", "USD", "etf", "Invesco NASDAQ 100 ETF"),
     _instrument("QQQ", "인베스코 QQQ", "NASDAQ", "NAS", "USD", "etf", "Invesco QQQ"),
     _instrument("SPY", "SPDR S&P 500 ETF", "AMEX", "AMS", "USD", "etf", "SPDR S&P 500 ETF Trust"),

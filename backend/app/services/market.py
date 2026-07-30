@@ -129,6 +129,36 @@ class MockMarketDataProvider:
                 market_open=False,
                 as_of=now,
             ),
+            "133690": Quote(
+                symbol="133690",
+                name="TIGER 미국나스닥100",
+                currency="KRW",
+                price=Decimal("164800"),
+                change=Decimal("-1250"),
+                change_rate=Decimal("-0.75"),
+                market_open=False,
+                as_of=now,
+            ),
+            "379800": Quote(
+                symbol="379800",
+                name="KODEX 미국S&P500",
+                currency="KRW",
+                price=Decimal("26035"),
+                change=Decimal("65"),
+                change_rate=Decimal("0.25"),
+                market_open=False,
+                as_of=now,
+            ),
+            "379810": Quote(
+                symbol="379810",
+                name="KODEX 미국나스닥100",
+                currency="KRW",
+                price=Decimal("28220"),
+                change=Decimal("165"),
+                change_rate=Decimal("0.59"),
+                market_open=False,
+                as_of=now,
+            ),
             "AAPL": Quote(
                 symbol="AAPL",
                 name="애플",
@@ -222,7 +252,12 @@ class MockMarketDataProvider:
             symbol=quote.symbol,
             name=quote.name,
             market="KRX" if is_domestic else "NASDAQ",
-            asset_type="etf" if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"} else "stock",
+            asset_type=(
+                "etf"
+                if quote.symbol
+                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
+                else "stock"
+            ),
             currency=quote.currency,
             open=quote.price - quote.change / Decimal("2"),
             high=quote.price * Decimal("1.015"),
@@ -230,16 +265,28 @@ class MockMarketDataProvider:
             volume=Decimal("1250000"),
             week_52_high=quote.price * Decimal("1.24"),
             week_52_low=quote.price * Decimal("0.72"),
-            per=None if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"} else Decimal("24.8"),
-            pbr=None if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"} else Decimal("3.2"),
+            per=(
+                None
+                if quote.symbol
+                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
+                else Decimal("24.8")
+            ),
+            pbr=(
+                None
+                if quote.symbol
+                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
+                else Decimal("3.2")
+            ),
             eps=(
                 None
-                if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"}
+                if quote.symbol
+                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
                 else quote.price / Decimal("24.8")
             ),
             bps=(
                 None
-                if quote.symbol in {"QQQM", "QQQ", "SPY", "VOO", "360750"}
+                if quote.symbol
+                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
                 else quote.price / Decimal("3.2")
             ),
             source="mock",

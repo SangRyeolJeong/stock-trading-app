@@ -34,7 +34,14 @@ const PERIODS = [
   { label: '6개월', days: 126 },
   { label: '1년', days: 252 },
 ] as const;
-const COMPARABLE_ETF_SYMBOLS = new Set(['QQQM', 'QQQ', 'SPY', 'VOO']);
+const COMPARABLE_ETF_SYMBOLS = new Set([
+  'QQQM',
+  'QQQ',
+  'SPY',
+  'VOO',
+  '379800',
+  '379810',
+]);
 
 type BrowserTab = (typeof BROWSER_TABS)[number]['key'];
 

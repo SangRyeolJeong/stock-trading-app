@@ -102,6 +102,8 @@ export interface EtfProfile {
   symbol: string;
   name: string;
   issuer: string;
+  listing_country: 'US' | 'KR';
+  trading_currency: 'USD' | 'KRW';
   underlying_index: string;
   expense_ratio_pct: string;
   holdings_count: number;

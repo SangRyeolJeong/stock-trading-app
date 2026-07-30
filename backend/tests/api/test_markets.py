@@ -1,8 +1,13 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.etf import stale_etf_symbols
 
 client = TestClient(app)
+
+
+def test_etf_official_snapshots_are_not_stale() -> None:
+    assert stale_etf_symbols() == []
 
 
 def test_unknown_symbol_returns_not_found() -> None:
@@ -53,9 +58,19 @@ def test_etf_catalog_exposes_versioned_official_snapshots() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["data_version"] == "ETF-COMPARE-2026.07"
-    assert {item["symbol"] for item in payload["items"]} == {"QQQM", "QQQ", "SPY", "VOO"}
+    assert {item["symbol"] for item in payload["items"]} == {
+        "QQQM",
+        "QQQ",
+        "SPY",
+        "VOO",
+        "379800",
+        "379810",
+    }
     assert all(item["source_url"].startswith("https://") for item in payload["items"])
     assert all(float(item["top_holdings_coverage_pct"]) > 0 for item in payload["items"])
+    kodex = next(item for item in payload["items"] if item["symbol"] == "379800")
+    assert kodex["listing_country"] == "KR"
+    assert kodex["trading_currency"] == "KRW"
 
 
 def test_etf_comparison_calculates_overlap_and_fee_difference() -> None:
@@ -86,6 +101,30 @@ def test_etf_comparison_warns_about_cross_index_overlap() -> None:
     assert payload["same_underlying_index"] is False
     assert 0 < float(payload["top_holdings_overlap_pct"]) < 100
     assert payload["common_top_holdings_count"] >= 7
+
+
+def test_etf_comparison_supports_korean_and_us_listings() -> None:
+    response = client.get(
+        "/api/v1/markets/etfs/compare",
+        params={"left": "379800", "right": "VOO"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["same_underlying_index"] is True
+    assert payload["left"]["trading_currency"] == "KRW"
+    assert payload["right"]["trading_currency"] == "USD"
+    assert payload["lower_expense_symbol"] == "379800"
+    assert payload["annual_fee_difference_krw"] == "2380"
+    assert "세금·환전·거래시간" in payload["interpretation"]
+
+
+def test_domestic_kodex_mock_quotes_are_tradeable() -> None:
+    for symbol in ("379800", "379810", "133690"):
+        response = client.get(f"/api/v1/markets/quotes/{symbol}")
+
+        assert response.status_code == 200
+        assert response.json()["currency"] == "KRW"
 
 
 def test_etf_comparison_rejects_same_or_unsupported_symbols() -> None:
