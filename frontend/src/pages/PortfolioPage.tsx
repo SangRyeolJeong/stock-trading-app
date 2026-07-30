@@ -4,9 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../app/toast';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
+import { useUserPreferences } from '../data/userPreferences';
 import { marketApi } from '../services/marketApi';
 import { paperApi } from '../services/paperApi';
+import { strategyApi } from '../services/strategyApi';
 import type { PaperPosition } from '../types/api';
+import { calculateRebalancingPlan } from '../utils/rebalancing';
 
 const colors = ['#5578ff', '#6cd2b8', '#ffb15c', '#9a7cff', '#4f98d8'];
 
@@ -61,6 +64,7 @@ export function PortfolioPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const preferences = useUserPreferences();
   const portfolioQuery = useQuery({
     queryKey: ['paper-portfolio', 'demo-account'],
     queryFn: paperApi.getPortfolioSummary,
@@ -74,6 +78,19 @@ export function PortfolioPage() {
     queryKey: ['exchange-rate', 'USD', 'KRW'],
     queryFn: () => marketApi.getExchangeRate('USD', 'KRW'),
     staleTime: 60_000,
+  });
+  const strategyQuery = useQuery({
+    queryKey: ['strategy', 'portfolio-rebalancing', preferences],
+    queryFn: () => strategyApi.recommend({
+      goal: preferences.strategyGoal,
+      horizon_years: preferences.investmentYears,
+      monthly_amount_krw: preferences.monthlyInvestmentKrw,
+      risk_profile: preferences.riskProfile,
+      liquidity_preference: preferences.liquidityPreference,
+      fee_sensitivity: preferences.feeSensitivity,
+      income_preference: preferences.incomePreference,
+      tax_efficiency_priority: true,
+    }),
   });
   const portfolio = portfolioQuery.data;
   const positions = portfolio?.positions ?? [];
@@ -107,6 +124,26 @@ export function PortfolioPage() {
   const largestPositionWeight = largestPosition && combined.positions > 0
     ? largestPosition.valueKrw / combined.positions * 100
     : 0;
+  const rebalancingPlan = conversionReady && strategyQuery.data
+    ? calculateRebalancingPlan({
+        currentValuesKrw: {
+          equity: combined.positions,
+          defensive: 0,
+          cash: combined.cash,
+        },
+        targetWeightsPct: {
+          equity: strategyQuery.data.risk_summary.equity_weight_pct,
+          defensive: strategyQuery.data.risk_summary.defensive_weight_pct,
+          cash: strategyQuery.data.risk_summary.liquidity_weight_pct,
+        },
+        contributionKrw: preferences.monthlyInvestmentKrw,
+      })
+    : null;
+  const rebalancingLabels = {
+    equity: '주식성 자산',
+    defensive: '채권·방어 자산',
+    cash: '현금성 자산',
+  };
   const filteredOrders = (ordersQuery.data ?? []).filter(
     (order) => orderFilter === 'all' || order.side === orderFilter,
   );
@@ -204,6 +241,48 @@ export function PortfolioPage() {
           </button>
         </article>
       </section>
+
+      <article className="card rebalancing-card">
+        <div className="card-heading">
+          <div>
+            <span className="label">다음 월 투자금 리밸런싱</span>
+            <p>현재 보유 비중과 {strategyQuery.data?.title ?? '맞춤 전략'} 목표 비중의 부족분을 계산</p>
+          </div>
+          <button className="ledger-count action" onClick={() => navigate('/strategy')}>
+            전략 설정 <Icon name="chevron" size={12} />
+          </button>
+        </div>
+        {strategyQuery.isError ? (
+          <div className="data-status error">
+            <span>목표 비중을 불러오지 못했습니다.</span>
+            <button onClick={() => strategyQuery.refetch()}>다시 시도</button>
+          </div>
+        ) : rebalancingPlan ? (
+          <>
+            <div className="rebalancing-head">
+              <span>자산군</span><span>현재 / 목표</span><span>비중 차이</span><span>다음 {formatMoney(rebalancingPlan.contributionKrw, 'KRW')}</span>
+            </div>
+            {rebalancingPlan.items.map((item) => (
+              <div className="rebalancing-row" key={item.category}>
+                <strong>{rebalancingLabels[item.category]}</strong>
+                <span className="weight-comparison">
+                  <i><b style={{ width: `${Math.min(item.currentWeightPct, 100)}%` }} /></i>
+                  {item.currentWeightPct.toFixed(1)}% / {item.targetWeightPct}%
+                </span>
+                <span className={item.driftPctPoint > 0 ? 'up' : item.driftPctPoint < 0 ? 'down' : ''}>
+                  {item.driftPctPoint > 0 ? '+' : ''}{item.driftPctPoint.toFixed(1)}%p
+                </span>
+                <strong>{formatMoney(item.suggestedContributionKrw, 'KRW')}</strong>
+              </div>
+            ))}
+            <p className="rebalancing-note">
+              <Icon name="info" size={13} />
+              현재 지원하는 주식·ETF 보유분은 주식성 자산으로 분류했습니다. 매도 없이 새 투자금만
+              부족한 자산군에 배분하는 단순 계산이며 실제 상품 선택은 전략 화면에서 확인하세요.
+            </p>
+          </>
+        ) : <div className="ledger-empty compact">현재 원장과 맞춤 목표 비중을 연결하는 중입니다…</div>}
+      </article>
 
       <article className="card holdings-card">
         <div className="card-heading"><div><span className="label">보유 자산</span><p>현재 시세 평가 기준</p></div><span className="ledger-count">{positions.length}종목</span></div>

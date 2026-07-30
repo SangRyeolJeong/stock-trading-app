@@ -667,6 +667,19 @@ button, .card, .nav-item { -webkit-tap-highlight-color: transparent; }
 .portfolio-next-actions > button strong { color: #e8edf6; font-size: 10px; }
 .portfolio-next-actions > button small { overflow: hidden; color: #6f7c91; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .portfolio-next-actions > button > svg { color: #65728a; }
+.ledger-count.action { display: flex; align-items: center; gap: 3px; }
+.rebalancing-card { padding: 20px; }
+.rebalancing-head, .rebalancing-row { display: grid; grid-template-columns: 1fr 1.5fr .65fr 1fr; align-items: center; gap: 12px; }
+.rebalancing-head { margin-top: 16px; padding: 0 12px 8px; color: #68758a; font-size: 8px; }
+.rebalancing-row { min-height: 53px; border-top: 1px solid #252c38; padding: 8px 12px; }
+.rebalancing-row > strong { color: #dce4f0; font-size: 10px; }
+.rebalancing-row > strong:last-child { text-align: right; }
+.rebalancing-row > span { color: #8491a5; font-size: 9px; }
+.weight-comparison { display: flex; align-items: center; gap: 8px; }
+.weight-comparison i { width: 76px; height: 5px; overflow: hidden; border-radius: 99px; background: #252d3a; }
+.weight-comparison b { display: block; height: 100%; border-radius: inherit; background: #5c7ffc; }
+.rebalancing-note { display: flex; align-items: flex-start; gap: 6px; margin: 12px 0 0; color: #6f7d92; font-size: 8px; line-height: 1.55; }
+.ledger-empty.compact { min-height: 100px; }
 .ledger-count { color: #687487; font-size: 9px; }
 .order-history-card { margin-bottom: 30px; }
 .order-history-head, .order-history-row { display: grid; grid-template-columns: 1.25fr .65fr .45fr .55fr .5fr .95fr .65fr .8fr 42px; align-items: center; gap: 10px; }
@@ -807,6 +820,7 @@ button, .card, .nav-item { -webkit-tap-highlight-color: transparent; }
   .market-status, .mode-chip { display: none; }
   .page { min-height: calc(100vh - 60px); padding: 22px 16px 35px; }
   .dashboard-grid, .tax-grid, .strategy-layout, .portfolio-summary, .portfolio-guidance, .settings-layout { grid-template-columns: 1fr; }
+  .rebalancing-head, .rebalancing-row { grid-template-columns: 1fr 1.2fr .7fr 1fr; }
   .watch-card, .insight-card, .allocation-card { grid-column: auto; grid-row: auto; }
   .market-page { height: auto; overflow: visible; padding: 12px; }
   .market-layout { height: auto; grid-template-columns: 1fr; }
