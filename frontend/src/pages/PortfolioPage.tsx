@@ -92,6 +92,21 @@ export function PortfolioPage() {
     { total: 0, cash: 0, positions: 0, unrealized: 0, realized: 0 },
   );
   const conversionReady = Boolean(portfolio) && usdKrwRate > 0;
+  const cashWeight = combined.total > 0 ? combined.cash / combined.total * 100 : 0;
+  const positionWeights = positions.map((position) => ({
+    symbol: position.symbol,
+    valueKrw: toKrw(String(position.market_value ?? 0), position.currency),
+  }));
+  const largestPosition = positionWeights.reduce<{
+    symbol: string;
+    valueKrw: number;
+  } | null>(
+    (largest, item) => !largest || item.valueKrw > largest.valueKrw ? item : largest,
+    null,
+  );
+  const largestPositionWeight = largestPosition && combined.positions > 0
+    ? largestPosition.valueKrw / combined.positions * 100
+    : 0;
   const filteredOrders = (ordersQuery.data ?? []).filter(
     (order) => orderFilter === 'all' || order.side === orderFilter,
   );
@@ -152,6 +167,42 @@ export function PortfolioPage() {
           </article>
         ))}
         {!portfolio && <article className="card portfolio-loading">원장을 불러오는 중입니다…</article>}
+      </section>
+
+      <section className="portfolio-guidance">
+        <article className="card portfolio-diagnosis">
+          <div className="card-heading">
+            <div><span className="label">실제 원장 기반 진단</span><p>USD 자산은 현재 환율로 KRW 환산</p></div>
+            <span className="ledger-count">{conversionReady ? '계산 완료' : '계산 중'}</span>
+          </div>
+          <div className="diagnosis-metrics">
+            <span><small>현금 완충 비중</small><strong>{conversionReady ? `${cashWeight.toFixed(1)}%` : '—'}</strong></span>
+            <span><small>최대 종목</small><strong>{largestPosition?.symbol ?? '—'}</strong></span>
+            <span><small>최대 종목 비중</small><strong>{conversionReady ? `${largestPositionWeight.toFixed(1)}%` : '—'}</strong></span>
+          </div>
+          <p className={largestPositionWeight >= 40 ? 'diagnosis-warning' : ''}>
+            {positions.length === 0
+              ? '시장 화면에서 첫 모의 주문을 체결하면 실제 보유 비중 진단이 시작됩니다.'
+              : largestPositionWeight >= 40
+                ? `${largestPosition?.symbol} 비중이 투자자산의 40% 이상입니다. 새 주문 전 분산 여부를 점검하세요.`
+                : cashWeight < 5
+                  ? '현금 비중이 5% 미만입니다. 추가 매수와 예상 지출에 쓸 유동성을 확인하세요.'
+                  : '현재 원장을 기준으로 단일 종목 40% 미만, 현금 5% 이상을 유지하고 있습니다.'}
+          </p>
+        </article>
+        <article className="card portfolio-next-actions">
+          <div className="card-heading"><div><span className="label">계산기로 이어가기</span><p>보유 현황을 확인한 다음 세후 계좌와 목표 비중을 비교하세요.</p></div></div>
+          <button onClick={() => navigate('/tax')}>
+            <span className="title-icon blue"><Icon name="wallet" size={18} /></span>
+            <p><strong>세후 계좌 비교</strong><small>같은 월 투자금으로 일반·ISA·연금·IRP 비교</small></p>
+            <Icon name="chevron" size={16} />
+          </button>
+          <button onClick={() => navigate('/strategy')}>
+            <span className="title-icon purple"><Icon name="sparkles" size={18} /></span>
+            <p><strong>맞춤 목표 비중</strong><small>기간·성향·목표에 맞는 다음 월 배분 확인</small></p>
+            <Icon name="chevron" size={16} />
+          </button>
+        </article>
       </section>
 
       <article className="card holdings-card">

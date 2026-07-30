@@ -19,6 +19,7 @@ import { marketApi, type MarketFilter } from '../services/marketApi';
 import { paperApi } from '../services/paperApi';
 import type { Instrument } from '../types/api';
 import { formatChangeRate, formatQuotePrice, formatUpdatedAt } from '../utils/format';
+import { calculateOrderImpact } from '../utils/portfolioImpact';
 
 const BROWSER_TABS = [
   { key: 'favorites', label: '관심' },
@@ -72,31 +73,44 @@ function TradePanel({
   const [customLimitPrice, setCustomLimitPrice] = useState<number | null>(null);
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const accountsQuery = useQuery({
-    queryKey: ['paper-accounts'],
-    queryFn: paperApi.getAccounts,
-  });
-  const positionsQuery = useQuery({
-    queryKey: ['paper-positions', 'demo-account'],
-    queryFn: paperApi.getPositions,
+  const navigate = useNavigate();
+  const portfolioQuery = useQuery({
+    queryKey: ['paper-portfolio', 'demo-account'],
+    queryFn: paperApi.getPortfolioSummary,
   });
   const exchangeRateQuery = useQuery({
     queryKey: ['exchange-rate', 'USD', 'KRW'],
     queryFn: () => marketApi.getExchangeRate('USD', 'KRW'),
-    enabled: currency === 'USD',
     staleTime: 60_000,
   });
   const usdKrwRate = Number(exchangeRateQuery.data?.rate ?? 0);
-  const cashBalance = accountsQuery.data?.[0]?.cash_balances.find(
-    (balance) => balance.currency === currency,
+  const cashBalance = portfolioQuery.data?.currencies.find(
+    (summary) => summary.currency === currency,
   );
-  const availableCash = Number(cashBalance?.amount ?? 0);
-  const position = positionsQuery.data?.find((item) => item.symbol === symbol);
+  const availableCash = Number(cashBalance?.cash ?? 0);
+  const position = portfolioQuery.data?.positions.find((item) => item.symbol === symbol);
   const availableQuantity = Math.floor(Number(position?.quantity ?? 0));
   const limitPrice = customLimitPrice ?? price;
   const executionPrice = orderType === 'limit' ? limitPrice : price;
   const estimatedGross = executionPrice * quantity;
   const estimatedFee = estimatedGross * 0.001;
+  const impactReady = Boolean(portfolioQuery.data) && usdKrwRate > 0;
+  const impact = impactReady
+    ? calculateOrderImpact({
+        symbol,
+        side,
+        tradeCurrency: currency,
+        grossAmount: estimatedGross,
+        feeAmount: estimatedFee,
+        availableCash,
+        usdKrwRate,
+        positions: (portfolioQuery.data?.positions ?? []).map((item) => ({
+          symbol: item.symbol,
+          currency: item.currency,
+          marketValue: Number(item.market_value ?? 0),
+        })),
+      })
+    : null;
   const orderError = executionPrice <= 0
     ? '유효한 주문 가격이 필요합니다.'
     : side === 'buy' && estimatedGross + estimatedFee > availableCash
@@ -173,7 +187,7 @@ function TradePanel({
         <strong>
           {side === 'buy'
             ? cashBalance ? formatCash(availableCash, currency) : '불러오는 중'
-            : positionsQuery.isLoading ? '불러오는 중' : `${availableQuantity.toLocaleString('ko-KR')}주`}
+            : portfolioQuery.isLoading ? '불러오는 중' : `${availableQuantity.toLocaleString('ko-KR')}주`}
         </strong>
       </div>
       <label>주문 방식</label>
@@ -204,9 +218,49 @@ function TradePanel({
         ))}
       </div>
       {orderType === 'limit' && <p className="limit-order-note">현재 시세가 지정가 조건을 충족하면 시세로 체결되고, 그 전까지 주문 원장에 대기합니다.</p>}
-      {orderError && !accountsQuery.isLoading && !positionsQuery.isLoading && <p className="order-validation">{orderError}</p>}
+      {orderError && !portfolioQuery.isLoading && <p className="order-validation">{orderError}</p>}
       <div className="order-summary"><div><span>예상 주문 금액</span><strong>{formatCash(estimatedGross, currency)}</strong></div><div><span>예상 수수료</span><strong>{formatCash(estimatedFee, currency)}</strong></div></div>
-      <button className={`order-button ${side}`} onClick={submitOrder} disabled={orderMutation.isPending || Boolean(orderError) || accountsQuery.isLoading || positionsQuery.isLoading}>
+      <section className={`order-impact ${impact?.concentrationLevel ?? ''}`}>
+        <div className="order-impact-title">
+          <span><Icon name="chart" size={14} /> 주문 후 포트폴리오</span>
+          <button onClick={() => navigate('/portfolio')}>자세히 <Icon name="chevron" size={12} /></button>
+        </div>
+        {impact ? (
+          <>
+            <div className="impact-weight">
+              <span>{symbol} 투자자산 비중</span>
+              <strong>{impact.currentWeightPct.toFixed(1)}% <i>→</i> {impact.projectedWeightPct.toFixed(1)}%</strong>
+            </div>
+            <div className="impact-bar">
+              <i style={{ width: `${Math.min(impact.projectedWeightPct, 100)}%` }} />
+            </div>
+            <div className="impact-metrics">
+              <span>주문 후 투자자산<strong>{formatCash(impact.projectedInvestedKrw, 'KRW')}</strong></span>
+              <span>주문 후 {currency} 현금<strong>{formatCash(impact.projectedCash, currency)}</strong></span>
+            </div>
+            <p>
+              {impact.concentrationLevel === 'high'
+                ? '한 종목 비중이 40% 이상입니다. 체결 전 분산 위험을 확인하세요.'
+                : impact.concentrationLevel === 'watch'
+                  ? '한 종목 비중이 25% 이상입니다. 목표 비중과 비교해 보세요.'
+                  : '현재 기준으로 단일 종목 비중이 25% 미만입니다.'}
+            </p>
+            <div className="impact-links">
+              <button onClick={() => navigate('/tax')}>세후 계좌 비교</button>
+              <button onClick={() => navigate('/strategy')}>맞춤 전략 확인</button>
+            </div>
+          </>
+        ) : portfolioQuery.isError || exchangeRateQuery.isError ? (
+          <span className="impact-loading error">
+            영향 계산 데이터를 불러오지 못했습니다.
+            <button onClick={() => {
+              void portfolioQuery.refetch();
+              void exchangeRateQuery.refetch();
+            }}>다시 시도</button>
+          </span>
+        ) : <span className="impact-loading">실제 보유 원장과 환율을 연결하는 중…</span>}
+      </section>
+      <button className={`order-button ${side}`} onClick={submitOrder} disabled={orderMutation.isPending || Boolean(orderError) || portfolioQuery.isLoading}>
         {orderMutation.isPending ? '주문 접수 중…' : `${quantity}주 ${side === 'buy' ? '구매하기' : '판매하기'}`}
       </button>
       <p className="paper-note"><Icon name="shield" size={14} /> 모의투자 주문으로 실제 돈은 사용되지 않아요</p>
