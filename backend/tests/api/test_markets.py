@@ -65,6 +65,8 @@ def test_etf_catalog_exposes_versioned_official_snapshots() -> None:
         "VOO",
         "379800",
         "379810",
+        "360750",
+        "133690",
     }
     assert all(item["source_url"].startswith("https://") for item in payload["items"])
     assert all(float(item["top_holdings_coverage_pct"]) > 0 for item in payload["items"])
@@ -117,6 +119,22 @@ def test_etf_comparison_supports_korean_and_us_listings() -> None:
     assert payload["lower_expense_symbol"] == "379800"
     assert payload["annual_fee_difference_krw"] == "2380"
     assert "세금·환전·거래시간" in payload["interpretation"]
+
+
+def test_etf_comparison_supports_same_index_korean_issuers() -> None:
+    response = client.get(
+        "/api/v1/markets/etfs/compare",
+        params={"left": "360750", "right": "379800"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["same_underlying_index"] is True
+    assert payload["left"]["listing_country"] == "KR"
+    assert payload["right"]["listing_country"] == "KR"
+    assert payload["common_top_holdings_count"] >= 9
+    assert payload["lower_expense_symbol"] == "379800"
+    assert payload["annual_fee_difference_krw"] == "60"
 
 
 def test_domestic_kodex_mock_quotes_are_tradeable() -> None:

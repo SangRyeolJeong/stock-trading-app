@@ -12,7 +12,7 @@ from app.schemas.market import (
 
 DATA_VERSION = "ETF-COMPARE-2026.07"
 COMPARISON_PRINCIPAL_KRW = Decimal("10000000")
-MAX_SNAPSHOT_AGE_DAYS = 365
+MAX_SNAPSHOT_AGE_DAYS = 400
 DISCLAIMER = (
     "운용사 공식 자료의 기준일 스냅샷을 사용한 교육용 비교입니다. "
     "표시 총보수는 기타비용·매매비용을 포함한 실제 부담비용과 다를 수 있고, "
@@ -40,6 +40,8 @@ SPY_URL = (
 VOO_URL = "https://investor.vanguard.com/investment-products/etfs/profile/voo"
 KODEX_SP500_URL = "https://www.samsungfund.com/etf/product/view.do?id=2ETFE4"
 KODEX_NASDAQ100_URL = "https://www.samsungfund.com/etf/product/view.do?id=2ETFE3"
+TIGER_SP500_URL = "https://www.tigeretf.com/upload/etf/20250804095324004654.pdf"
+TIGER_NASDAQ100_URL = "https://www.tigeretf.com/upload/etf/20250804095126005665.pdf"
 
 
 def _holding(symbol: str, name: str, weight_pct: str) -> EtfHolding:
@@ -244,6 +246,60 @@ ETF_PROFILES = {
         ],
         source_url=KODEX_NASDAQ100_URL,
         holdings_source_url=KODEX_NASDAQ100_URL,
+    ),
+    "360750": _profile(
+        symbol="360750",
+        name="TIGER 미국S&P500",
+        issuer="미래에셋자산운용",
+        listing_country="KR",
+        trading_currency="KRW",
+        underlying_index="S&P 500 Index",
+        expense_ratio_pct="0.0068",
+        holdings_count=500,
+        inception_date=date(2020, 8, 6),
+        facts_as_of=date(2025, 7, 31),
+        holdings_as_of=date(2025, 7, 31),
+        top_holdings=[
+            _holding("NVDA", "NVIDIA", "8.09"),
+            _holding("MSFT", "Microsoft", "7.05"),
+            _holding("AAPL", "Apple", "5.78"),
+            _holding("AMZN", "Amazon", "4.02"),
+            _holding("META", "Meta Platforms A", "2.79"),
+            _holding("AVGO", "Broadcom", "2.63"),
+            _holding("GOOGL", "Alphabet A", "2.11"),
+            _holding("GOOG", "Alphabet C", "1.71"),
+            _holding("TSLA", "Tesla", "1.65"),
+            _holding("BRK.B", "Berkshire Hathaway B", "1.61"),
+        ],
+        source_url=TIGER_SP500_URL,
+        holdings_source_url=TIGER_SP500_URL,
+    ),
+    "133690": _profile(
+        symbol="133690",
+        name="TIGER 미국나스닥100",
+        issuer="미래에셋자산운용",
+        listing_country="KR",
+        trading_currency="KRW",
+        underlying_index="Nasdaq-100 Index",
+        expense_ratio_pct="0.0068",
+        holdings_count=100,
+        inception_date=date(2010, 10, 15),
+        facts_as_of=date(2025, 7, 31),
+        holdings_as_of=date(2025, 7, 31),
+        top_holdings=[
+            _holding("NVDA", "NVIDIA", "9.98"),
+            _holding("MSFT", "Microsoft", "8.70"),
+            _holding("AAPL", "Apple", "7.12"),
+            _holding("AMZN", "Amazon", "5.57"),
+            _holding("AVGO", "Broadcom", "5.37"),
+            _holding("META", "Meta Platforms A", "3.44"),
+            _holding("NFLX", "Netflix", "2.82"),
+            _holding("TSLA", "Tesla", "2.65"),
+            _holding("GOOGL", "Alphabet A", "2.61"),
+            _holding("GOOG", "Alphabet C", "2.46"),
+        ],
+        source_url=TIGER_NASDAQ100_URL,
+        holdings_source_url=TIGER_NASDAQ100_URL,
     ),
 }
 

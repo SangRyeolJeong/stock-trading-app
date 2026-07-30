@@ -41,6 +41,8 @@ const COMPARABLE_ETF_SYMBOLS = new Set([
   'VOO',
   '379800',
   '379810',
+  '360750',
+  '133690',
 ]);
 
 type BrowserTab = (typeof BROWSER_TABS)[number]['key'];
