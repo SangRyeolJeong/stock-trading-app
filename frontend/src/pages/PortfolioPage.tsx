@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../app/toast';
+import { TAX_PLANNER_PATH } from '../app/paths';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
 import { useUserPreferences } from '../data/userPreferences';
@@ -246,7 +247,7 @@ export function PortfolioPage() {
         </article>
         <article className="card portfolio-next-actions">
           <div className="card-heading"><div><span className="label">계산기로 이어가기</span><p>보유 현황을 확인한 다음 세후 계좌와 목표 비중을 비교하세요.</p></div></div>
-          <button onClick={() => navigate('/tax')}>
+          <button onClick={() => navigate(TAX_PLANNER_PATH)}>
             <span className="title-icon blue"><Icon name="wallet" size={18} /></span>
             <p><strong>세후 계좌 비교</strong><small>같은 월 투자금으로 일반·ISA·연금·IRP 비교</small></p>
             <Icon name="chevron" size={16} />

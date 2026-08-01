@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useToast } from '../app/toast';
+import { TAX_PLANNER_PATH } from '../app/paths';
 import ChartSection from '../components/ChartSection';
 import CompanyOverview from '../components/CompanyOverview';
 import { EtfComparisonPanel } from '../components/EtfComparisonPanel';
@@ -257,7 +258,7 @@ function TradePanel({
                   : '현재 기준으로 단일 종목 비중이 25% 미만입니다.'}
             </p>
             <div className="impact-links">
-              <button onClick={() => navigate('/tax')}>세후 계좌 비교</button>
+              <button onClick={() => navigate(TAX_PLANNER_PATH)}>세후 계좌 비교</button>
               <button onClick={() => navigate('/strategy')}>맞춤 전략 확인</button>
             </div>
           </>

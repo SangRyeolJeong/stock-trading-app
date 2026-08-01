@@ -6,6 +6,7 @@ import { PortfolioPage } from '../pages/PortfolioPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { StrategyPage } from '../pages/StrategyPage';
 import { TaxPlannerPage } from '../pages/TaxPlannerPage';
+import { LEGACY_TAX_PATH, TAX_PLANNER_PATH } from './paths';
 
 const LearnPage = lazy(async () => ({
   default: (await import('../pages/LearnPage')).LearnPage,
@@ -32,7 +33,8 @@ const router = createBrowserRouter([
       { path: '/', element: <HomePage /> },
       { path: '/market', element: lazyRoute(<MarketPage />) },
       { path: '/market/:symbol', element: lazyRoute(<MarketPage />) },
-      { path: '/tax-planner', element: <TaxPlannerPage /> },
+      { path: TAX_PLANNER_PATH, element: <TaxPlannerPage /> },
+      { path: LEGACY_TAX_PATH, element: <Navigate to={TAX_PLANNER_PATH} replace /> },
       { path: '/strategy', element: <StrategyPage /> },
       { path: '/portfolio', element: <PortfolioPage /> },
       { path: '/settings', element: <SettingsPage /> },
