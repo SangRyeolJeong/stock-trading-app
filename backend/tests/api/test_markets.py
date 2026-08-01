@@ -59,6 +59,27 @@ def test_instrument_search_filters_domestic_and_etf() -> None:
     assert etfs.json()["items"][0]["asset_type"] == "etf"
 
 
+def test_income_and_defensive_mock_etfs_are_searchable_and_tradeable() -> None:
+    for symbol, expected_name in (
+        ("DGRO", "배당성장"),
+        ("SGOV", "미국 국채"),
+    ):
+        search = client.get(
+            "/api/v1/markets/instruments",
+            params={"query": symbol, "market": "etf"},
+        )
+        quote = client.get(f"/api/v1/markets/quotes/{symbol}")
+        overview = client.get(f"/api/v1/markets/overview/{symbol}")
+
+        assert search.status_code == 200
+        assert search.json()["items"][0]["symbol"] == symbol
+        assert expected_name in search.json()["items"][0]["name"]
+        assert quote.status_code == 200
+        assert quote.json()["currency"] == "USD"
+        assert overview.status_code == 200
+        assert overview.json()["asset_type"] == "etf"
+
+
 def test_etf_catalog_exposes_versioned_official_snapshots() -> None:
     response = client.get("/api/v1/markets/etfs")
 

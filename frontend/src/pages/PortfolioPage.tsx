@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../app/toast';
 import { TAX_PLANNER_PATH } from '../app/paths';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
+import {
+  categoryForPosition,
+  REBALANCING_PRODUCTS,
+} from '../data/rebalancingProducts';
 import { useUserPreferences } from '../data/userPreferences';
 import { marketApi } from '../services/marketApi';
 import { paperApi } from '../services/paperApi';
@@ -126,42 +130,68 @@ export function PortfolioPage() {
   const largestPositionWeight = largestPosition && combined.positions > 0
     ? largestPosition.valueKrw / combined.positions * 100
     : 0;
+  const investedValuesByCategory = positions.reduce(
+    (values, position) => {
+      const category = categoryForPosition(position.symbol);
+      values[category] += toKrw(String(position.market_value ?? 0), position.currency);
+      return values;
+    },
+    { growth: 0, income: 0, defensive: 0 },
+  );
+  const targetWeights = Object.fromEntries(
+    (strategyQuery.data?.allocations ?? []).map((allocation) => [
+      allocation.asset_class,
+      allocation.weight_pct,
+    ]),
+  );
   const rebalancingPlan = conversionReady && strategyQuery.data
     ? calculateRebalancingPlan({
         currentValuesKrw: {
-          equity: combined.positions,
-          defensive: 0,
+          growth: investedValuesByCategory.growth,
+          income: investedValuesByCategory.income,
+          defensive: investedValuesByCategory.defensive,
           cash: combined.cash,
         },
         targetWeightsPct: {
-          equity: strategyQuery.data.risk_summary.equity_weight_pct,
-          defensive: strategyQuery.data.risk_summary.defensive_weight_pct,
-          cash: strategyQuery.data.risk_summary.liquidity_weight_pct,
+          growth: targetWeights.growth ?? 0,
+          income: targetWeights.income ?? 0,
+          defensive: targetWeights.defensive ?? 0,
+          cash: targetWeights.cash ?? 0,
         },
         contributionKrw: preferences.monthlyInvestmentKrw,
       })
     : null;
   const rebalancingLabels = {
-    equity: '주식성 자산',
+    growth: '성장주식 자산',
+    income: '배당·인컴 자산',
     defensive: '채권·방어 자산',
     cash: '현금성 자산',
   };
-  const equityRebalancing = rebalancingPlan?.items.find(
-    (item) => item.category === 'equity',
+  const rebalancingByCategory = Object.fromEntries(
+    (rebalancingPlan?.items ?? []).map((item) => [item.category, item]),
   );
-  const executionQuoteQuery = useQuery({
-    queryKey: ['quote', 'QQQM', 'rebalancing-draft'],
-    queryFn: () => marketApi.getQuote('QQQM'),
-    enabled: Number(equityRebalancing?.suggestedContributionKrw ?? 0) > 0,
-    staleTime: 30_000,
+  const executionQuoteQueries = useQueries({
+    queries: REBALANCING_PRODUCTS.map((product) => ({
+      queryKey: ['quote', product.symbol, 'rebalancing-draft'],
+      queryFn: () => marketApi.getQuote(product.symbol),
+      enabled: Number(
+        rebalancingByCategory[product.category]?.suggestedContributionKrw ?? 0,
+      ) > 0,
+      staleTime: 30_000,
+    })),
   });
-  const orderDraft = equityRebalancing && executionQuoteQuery.data && usdKrwRate > 0
-    ? calculateWholeShareOrderDraft({
-        allocationKrw: equityRebalancing.suggestedContributionKrw,
-        priceUsd: Number(executionQuoteQuery.data.price),
-        usdKrwRate,
-      })
-    : null;
+  const executionDrafts = REBALANCING_PRODUCTS.map((product, index) => {
+    const rebalancing = rebalancingByCategory[product.category];
+    const quoteQuery = executionQuoteQueries[index];
+    const orderDraft = rebalancing && quoteQuery.data && usdKrwRate > 0
+      ? calculateWholeShareOrderDraft({
+          allocationKrw: rebalancing.suggestedContributionKrw,
+          priceUsd: Number(quoteQuery.data.price),
+          usdKrwRate,
+        })
+      : null;
+    return { product, rebalancing, quoteQuery, orderDraft };
+  });
   const filteredOrders = (ordersQuery.data ?? []).filter(
     (order) => orderFilter === 'all' || order.side === orderFilter,
   );
@@ -295,24 +325,32 @@ export function PortfolioPage() {
             ))}
             <p className="rebalancing-note">
               <Icon name="info" size={13} />
-              현재 지원하는 주식·ETF 보유분은 주식성 자산으로 분류했습니다. 매도 없이 새 투자금만
-              부족한 자산군에 배분하는 단순 계산이며 실제 상품 선택은 전략 화면에서 확인하세요.
+              DGRO는 배당·인컴, SGOV는 채권·방어 자산으로 구분하고 그 밖의 현재 지원 종목은
+              성장주식으로 계산합니다. 매도 없이 새 투자금만 부족한 자산군에 배분하는 예시입니다.
             </p>
-            {equityRebalancing && equityRebalancing.suggestedContributionKrw > 0 && (
-              <section className="execution-draft">
+            {executionDrafts.map(({
+              product,
+              rebalancing,
+              quoteQuery,
+              orderDraft,
+            }) => rebalancing && rebalancing.suggestedContributionKrw > 0 && (
+              <section className="execution-draft" key={product.category}>
                 <div>
-                  <span className="stock-logo">Q</span>
+                  <span className="stock-logo">{product.logo}</span>
                   <p>
-                    <small>주식성 자산 실행 예시 · 확정 추천 아님</small>
-                    <strong>QQQM 정수 수량 모의주문 초안</strong>
+                    <small>{product.role} · 확정 추천 아님</small>
+                    <strong>{product.symbol} 정수 수량 모의주문 초안</strong>
+                    <a href={product.officialSourceUrl} target="_blank" rel="noreferrer">
+                      {product.name} 공식 정보
+                    </a>
                   </p>
                 </div>
-                {executionQuoteQuery.isError ? (
-                  <button onClick={() => executionQuoteQuery.refetch()}>시세 다시 불러오기</button>
+                {quoteQuery.isError ? (
+                  <button onClick={() => void quoteQuery.refetch()}>시세 다시 불러오기</button>
                 ) : orderDraft ? (
                   <>
                     <dl>
-                      <div><dt>배분 제안</dt><dd>{formatMoney(equityRebalancing.suggestedContributionKrw, 'KRW')}</dd></div>
+                      <div><dt>배분 제안</dt><dd>{formatMoney(rebalancing.suggestedContributionKrw, 'KRW')}</dd></div>
                       <div><dt>현재가 환산</dt><dd>{formatMoney(orderDraft.unitPriceKrw, 'KRW')}</dd></div>
                       <div><dt>주문 초안</dt><dd>{orderDraft.quantity}주</dd></div>
                       <div><dt>수수료 포함 후 잔액</dt><dd>{formatMoney(orderDraft.remainingKrw, 'KRW')}</dd></div>
@@ -320,7 +358,9 @@ export function PortfolioPage() {
                     <button
                       className="primary-button"
                       disabled={orderDraft.quantity < 1}
-                      onClick={() => navigate(`/market/QQQM?tab=etf&draftQuantity=${orderDraft.quantity}`)}
+                      onClick={() => navigate(
+                        `/market/${product.symbol}?tab=etf&draftQuantity=${orderDraft.quantity}`,
+                      )}
                     >
                       {orderDraft.quantity > 0
                         ? `${orderDraft.quantity}주 주문창으로`
@@ -328,12 +368,16 @@ export function PortfolioPage() {
                       <Icon name="chevron" size={14} />
                     </button>
                   </>
-                ) : <span className="execution-loading">QQQM 현재가와 환율로 수량을 계산하는 중…</span>}
+                ) : (
+                  <span className="execution-loading">
+                    {product.symbol} 현재가와 환율로 수량을 계산하는 중…
+                  </span>
+                )}
                 <small className="execution-caution">
                   환산 수량은 참고용입니다. 모의주문은 자동 환전하지 않으므로 주문창에서 USD 잔액을 별도로 확인합니다.
                 </small>
               </section>
-            )}
+            ))}
           </>
         ) : <div className="ledger-empty compact">현재 원장과 맞춤 목표 비중을 연결하는 중입니다…</div>}
       </article>

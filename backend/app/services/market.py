@@ -22,6 +22,19 @@ from app.services.instruments import InstrumentCatalog
 
 T = TypeVar("T")
 
+MOCK_ETF_SYMBOLS = {
+    "QQQM",
+    "QQQ",
+    "SPY",
+    "VOO",
+    "DGRO",
+    "SGOV",
+    "360750",
+    "133690",
+    "379800",
+    "379810",
+}
+
 
 class MarketDataProvider(Protocol):
     async def get_quote(self, symbol: str) -> Quote | None: ...
@@ -106,6 +119,26 @@ class MockMarketDataProvider:
                 price=Decimal("671.20"),
                 change=Decimal("-9.82"),
                 change_rate=Decimal("-1.44"),
+                market_open=True,
+                as_of=now,
+            ),
+            "DGRO": Quote(
+                symbol="DGRO",
+                name="아이셰어즈 코어 배당성장 ETF",
+                currency="USD",
+                price=Decimal("77.98"),
+                change=Decimal("-0.23"),
+                change_rate=Decimal("-0.29"),
+                market_open=True,
+                as_of=now,
+            ),
+            "SGOV": Quote(
+                symbol="SGOV",
+                name="아이셰어즈 0-3개월 미국 국채 ETF",
+                currency="USD",
+                price=Decimal("100.71"),
+                change=Decimal("0.03"),
+                change_rate=Decimal("0.03"),
                 market_open=True,
                 as_of=now,
             ),
@@ -252,12 +285,7 @@ class MockMarketDataProvider:
             symbol=quote.symbol,
             name=quote.name,
             market="KRX" if is_domestic else "NASDAQ",
-            asset_type=(
-                "etf"
-                if quote.symbol
-                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
-                else "stock"
-            ),
+            asset_type="etf" if quote.symbol in MOCK_ETF_SYMBOLS else "stock",
             currency=quote.currency,
             open=quote.price - quote.change / Decimal("2"),
             high=quote.price * Decimal("1.015"),
@@ -267,26 +295,22 @@ class MockMarketDataProvider:
             week_52_low=quote.price * Decimal("0.72"),
             per=(
                 None
-                if quote.symbol
-                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
+                if quote.symbol in MOCK_ETF_SYMBOLS
                 else Decimal("24.8")
             ),
             pbr=(
                 None
-                if quote.symbol
-                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
+                if quote.symbol in MOCK_ETF_SYMBOLS
                 else Decimal("3.2")
             ),
             eps=(
                 None
-                if quote.symbol
-                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
+                if quote.symbol in MOCK_ETF_SYMBOLS
                 else quote.price / Decimal("24.8")
             ),
             bps=(
                 None
-                if quote.symbol
-                in {"QQQM", "QQQ", "SPY", "VOO", "360750", "133690", "379800", "379810"}
+                if quote.symbol in MOCK_ETF_SYMBOLS
                 else quote.price / Decimal("3.2")
             ),
             source="mock",

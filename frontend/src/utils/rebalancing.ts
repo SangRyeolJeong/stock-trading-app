@@ -1,4 +1,4 @@
-export type RebalancingCategory = 'equity' | 'defensive' | 'cash';
+export type RebalancingCategory = 'growth' | 'income' | 'defensive' | 'cash';
 
 export interface RebalancingInput {
   currentValuesKrw: Record<RebalancingCategory, number>;
@@ -22,7 +22,7 @@ export interface RebalancingPlan {
   items: RebalancingItem[];
 }
 
-const CATEGORIES: RebalancingCategory[] = ['equity', 'defensive', 'cash'];
+const CATEGORIES: RebalancingCategory[] = ['growth', 'income', 'defensive', 'cash'];
 
 export function calculateRebalancingPlan(input: RebalancingInput): RebalancingPlan {
   const currentValues = Object.fromEntries(

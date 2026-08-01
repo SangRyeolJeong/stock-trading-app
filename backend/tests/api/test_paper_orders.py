@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -48,6 +49,24 @@ def test_accounts_start_with_krw_and_usd_cash() -> None:
         "KRW": "10000000.00000000",
         "USD": "10000.00000000",
     }
+
+
+@pytest.mark.parametrize("symbol", ["DGRO", "SGOV"])
+def test_rebalancing_example_etfs_can_be_bought(symbol: str) -> None:
+    payload = base_order()
+    payload.update(
+        {
+            "symbol": symbol,
+            "idempotency_key": f"test-rebalancing-{symbol.lower()}",
+        }
+    )
+
+    response = client.post("/api/v1/paper/orders", json=payload)
+    positions = client.get("/api/v1/paper/positions").json()
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "filled"
+    assert positions[0]["symbol"] == symbol
 
 
 def test_buy_is_rejected_when_cash_is_insufficient() -> None:
