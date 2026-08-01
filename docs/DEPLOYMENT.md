@@ -83,7 +83,7 @@ migration job으로 분리하는 편이 안전하다.
   기록하지 않는다.
 - PostgreSQL 자동 백업, point-in-time recovery, 복구 리허설을 운영 요구사항에
   맞게 설정한다.
-- 배포 전후 현재 `79`개 백엔드 테스트, Ruff, `31`개 프론트 테스트,
+- 배포 전후 현재 `86`개 백엔드 테스트, Ruff, `31`개 프론트 테스트,
   프론트 빌드와 ESLint, PostgreSQL 17 마이그레이션·readiness 스모크,
   컨테이너 이미지 빌드를 통과해야 한다.
 

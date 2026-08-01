@@ -10,9 +10,18 @@ from app.schemas.market import (
     EtfProfile,
 )
 
-DATA_VERSION = "ETF-COMPARE-2026.07"
+DATA_VERSION = "ETF-COMPARE-2026.08"
 COMPARISON_PRINCIPAL_KRW = Decimal("10000000")
-MAX_SNAPSHOT_AGE_DAYS = 400
+SNAPSHOT_MAX_AGE_DAYS = {
+    "QQQM": 190,
+    "QQQ": 190,
+    "SPY": 14,
+    "VOO": 95,
+    "379800": 45,
+    "379810": 45,
+    "360750": 45,
+    "133690": 45,
+}
 DISCLAIMER = (
     "운용사 공식 자료의 기준일 스냅샷을 사용한 교육용 비교입니다. "
     "표시 총보수는 기타비용·매매비용을 포함한 실제 부담비용과 다를 수 있고, "
@@ -40,8 +49,14 @@ SPY_URL = (
 VOO_URL = "https://investor.vanguard.com/investment-products/etfs/profile/voo"
 KODEX_SP500_URL = "https://www.samsungfund.com/etf/product/view.do?id=2ETFE4"
 KODEX_NASDAQ100_URL = "https://www.samsungfund.com/etf/product/view.do?id=2ETFE3"
-TIGER_SP500_URL = "https://www.tigeretf.com/upload/etf/20250804095324004654.pdf"
-TIGER_NASDAQ100_URL = "https://www.tigeretf.com/upload/etf/20250804095126005665.pdf"
+TIGER_SP500_URL = (
+    "https://www.tigeretf.com/ko/product/search/detail/index.do"
+    "?ksdFund=KR7360750004&otherPage=asset"
+)
+TIGER_NASDAQ100_URL = (
+    "https://www.tigeretf.com/ko/product/search/detail/index.do"
+    "?ksdFund=KR7133690008&otherPage=asset"
+)
 
 
 def _holding(symbol: str, name: str, weight_pct: str) -> EtfHolding:
@@ -150,19 +165,19 @@ ETF_PROFILES = {
         expense_ratio_pct="0.0945",
         holdings_count=504,
         inception_date=date(1993, 1, 22),
-        facts_as_of=date(2026, 7, 30),
-        holdings_as_of=date(2026, 7, 29),
+        facts_as_of=date(2026, 7, 31),
+        holdings_as_of=date(2026, 7, 30),
         top_holdings=[
-            _holding("AAPL", "Apple", "7.89"),
-            _holding("NVDA", "NVIDIA", "7.31"),
-            _holding("MSFT", "Microsoft", "4.61"),
-            _holding("AMZN", "Amazon", "3.53"),
-            _holding("GOOGL", "Alphabet A", "3.14"),
-            _holding("AVGO", "Broadcom", "2.79"),
-            _holding("GOOG", "Alphabet C", "2.52"),
-            _holding("META", "Meta Platforms A", "2.04"),
-            _holding("LLY", "Eli Lilly", "1.52"),
-            _holding("BRK.B", "Berkshire Hathaway B", "1.48"),
+            _holding("AAPL", "Apple", "7.65"),
+            _holding("NVDA", "NVIDIA", "7.38"),
+            _holding("MSFT", "Microsoft", "5.24"),
+            _holding("AMZN", "Amazon", "3.60"),
+            _holding("GOOGL", "Alphabet A", "3.06"),
+            _holding("AVGO", "Broadcom", "2.87"),
+            _holding("GOOG", "Alphabet C", "2.46"),
+            _holding("META", "Meta Platforms A", "1.85"),
+            _holding("MU", "Micron Technology", "1.54"),
+            _holding("JPM", "JPMorgan Chase", "1.47"),
         ],
         source_url=SPY_URL,
         holdings_source_url=SPY_URL,
@@ -204,7 +219,7 @@ ETF_PROFILES = {
         expense_ratio_pct="0.0062",
         holdings_count=506,
         inception_date=date(2021, 4, 9),
-        facts_as_of=date(2026, 7, 3),
+        facts_as_of=date(2026, 7, 31),
         holdings_as_of=date(2026, 7, 3),
         top_holdings=[
             _holding("NVDA", "NVIDIA", "7.34"),
@@ -230,7 +245,7 @@ ETF_PROFILES = {
         expense_ratio_pct="0.0062",
         holdings_count=105,
         inception_date=date(2021, 4, 9),
-        facts_as_of=date(2026, 7, 8),
+        facts_as_of=date(2026, 7, 31),
         holdings_as_of=date(2026, 7, 8),
         top_holdings=[
             _holding("NVDA", "NVIDIA", "7.66"),
@@ -255,21 +270,21 @@ ETF_PROFILES = {
         trading_currency="KRW",
         underlying_index="S&P 500 Index",
         expense_ratio_pct="0.0068",
-        holdings_count=500,
+        holdings_count=504,
         inception_date=date(2020, 8, 6),
-        facts_as_of=date(2025, 7, 31),
-        holdings_as_of=date(2025, 7, 31),
+        facts_as_of=date(2026, 7, 31),
+        holdings_as_of=date(2026, 7, 31),
         top_holdings=[
-            _holding("NVDA", "NVIDIA", "8.09"),
-            _holding("MSFT", "Microsoft", "7.05"),
-            _holding("AAPL", "Apple", "5.78"),
-            _holding("AMZN", "Amazon", "4.02"),
-            _holding("META", "Meta Platforms A", "2.79"),
-            _holding("AVGO", "Broadcom", "2.63"),
-            _holding("GOOGL", "Alphabet A", "2.11"),
-            _holding("GOOG", "Alphabet C", "1.71"),
-            _holding("TSLA", "Tesla", "1.65"),
-            _holding("BRK.B", "Berkshire Hathaway B", "1.61"),
+            _holding("AAPL", "Apple", "7.65"),
+            _holding("NVDA", "NVIDIA", "7.38"),
+            _holding("MSFT", "Microsoft", "5.24"),
+            _holding("AMZN", "Amazon", "3.60"),
+            _holding("GOOGL", "Alphabet A", "3.06"),
+            _holding("AVGO", "Broadcom", "2.87"),
+            _holding("GOOG", "Alphabet C", "2.46"),
+            _holding("META", "Meta Platforms A", "1.85"),
+            _holding("MU", "Micron Technology", "1.54"),
+            _holding("JPM", "JPMorgan Chase", "1.47"),
         ],
         source_url=TIGER_SP500_URL,
         holdings_source_url=TIGER_SP500_URL,
@@ -282,21 +297,21 @@ ETF_PROFILES = {
         trading_currency="KRW",
         underlying_index="Nasdaq-100 Index",
         expense_ratio_pct="0.0068",
-        holdings_count=100,
+        holdings_count=104,
         inception_date=date(2010, 10, 15),
-        facts_as_of=date(2025, 7, 31),
-        holdings_as_of=date(2025, 7, 31),
+        facts_as_of=date(2026, 7, 31),
+        holdings_as_of=date(2026, 7, 31),
         top_holdings=[
-            _holding("NVDA", "NVIDIA", "9.98"),
-            _holding("MSFT", "Microsoft", "8.70"),
-            _holding("AAPL", "Apple", "7.12"),
-            _holding("AMZN", "Amazon", "5.57"),
-            _holding("AVGO", "Broadcom", "5.37"),
-            _holding("META", "Meta Platforms A", "3.44"),
-            _holding("NFLX", "Netflix", "2.82"),
-            _holding("TSLA", "Tesla", "2.65"),
-            _holding("GOOGL", "Alphabet A", "2.61"),
-            _holding("GOOG", "Alphabet C", "2.46"),
+            _holding("AAPL", "Apple", "8.16"),
+            _holding("NVDA", "NVIDIA", "7.86"),
+            _holding("MSFT", "Microsoft", "5.58"),
+            _holding("MU", "Micron Technology", "4.53"),
+            _holding("AMZN", "Amazon", "4.22"),
+            _holding("AMD", "Advanced Micro Devices", "3.64"),
+            _holding("GOOGL", "Alphabet A", "3.24"),
+            _holding("AVGO", "Broadcom", "3.06"),
+            _holding("GOOG", "Alphabet C", "3.03"),
+            _holding("META", "Meta Platforms A", "2.66"),
         ],
         source_url=TIGER_NASDAQ100_URL,
         holdings_source_url=TIGER_NASDAQ100_URL,
@@ -306,11 +321,11 @@ ETF_PROFILES = {
 
 def stale_etf_symbols(as_of: date | None = None) -> list[str]:
     reference_date = as_of or date.today()
-    cutoff = reference_date - timedelta(days=MAX_SNAPSHOT_AGE_DAYS)
     return sorted(
         profile.symbol
         for profile in ETF_PROFILES.values()
-        if min(profile.facts_as_of, profile.holdings_as_of) < cutoff
+        if min(profile.facts_as_of, profile.holdings_as_of)
+        < reference_date - timedelta(days=SNAPSHOT_MAX_AGE_DAYS[profile.symbol])
         or max(profile.facts_as_of, profile.holdings_as_of) > reference_date
     )
 

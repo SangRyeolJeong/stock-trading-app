@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -8,6 +10,11 @@ client = TestClient(app)
 
 def test_etf_official_snapshots_are_not_stale() -> None:
     assert stale_etf_symbols() == []
+
+
+def test_etf_snapshot_freshness_uses_source_specific_cadence() -> None:
+    assert stale_etf_symbols(as_of=date(2026, 8, 15)) == ["SPY"]
+    assert stale_etf_symbols(as_of=date(2026, 8, 18)) == ["379800", "SPY"]
 
 
 def test_unknown_symbol_returns_not_found() -> None:
@@ -57,7 +64,7 @@ def test_etf_catalog_exposes_versioned_official_snapshots() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["data_version"] == "ETF-COMPARE-2026.07"
+    assert payload["data_version"] == "ETF-COMPARE-2026.08"
     assert {item["symbol"] for item in payload["items"]} == {
         "QQQM",
         "QQQ",
@@ -132,7 +139,7 @@ def test_etf_comparison_supports_same_index_korean_issuers() -> None:
     assert payload["same_underlying_index"] is True
     assert payload["left"]["listing_country"] == "KR"
     assert payload["right"]["listing_country"] == "KR"
-    assert payload["common_top_holdings_count"] >= 9
+    assert payload["common_top_holdings_count"] >= 8
     assert payload["lower_expense_symbol"] == "379800"
     assert payload["annual_fee_difference_krw"] == "60"
 
