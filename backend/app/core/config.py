@@ -1,6 +1,8 @@
+import ipaddress
 from decimal import Decimal
 from functools import lru_cache
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -76,7 +78,61 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Supabase 인증에는 SUPABASE_URL과 SUPABASE_PUBLISHABLE_KEY가 필요합니다."
             )
+        if self.market_data_provider == "kis" and (
+            not self.kis_app_key or not self.kis_app_secret
+        ):
+            raise ValueError(
+                "KIS 시세에는 KIS_APP_KEY와 KIS_APP_SECRET이 필요합니다."
+            )
+        if self.app_env == "production":
+            self._validate_production_origins()
+            self._validate_production_supabase_url()
         return self
+
+    def _validate_production_origins(self) -> None:
+        if not self.cors_origins:
+            raise ValueError("운영 환경에서는 CORS_ORIGINS가 필요합니다.")
+        for origin in self.cors_origins:
+            parsed = urlsplit(origin)
+            hostname = parsed.hostname
+            if (
+                origin == "*"
+                or parsed.scheme != "https"
+                or not hostname
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+                or parsed.username
+                or parsed.password
+                or self._is_loopback_host(hostname)
+            ):
+                raise ValueError(
+                    "운영 CORS_ORIGINS에는 경로 없는 HTTPS 공개 origin만 사용할 수 있습니다."
+                )
+
+    def _validate_production_supabase_url(self) -> None:
+        assert self.supabase_url is not None
+        parsed = urlsplit(self.supabase_url)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+            or parsed.username
+            or parsed.password
+            or self._is_loopback_host(parsed.hostname)
+        ):
+            raise ValueError("운영 SUPABASE_URL은 HTTPS 공개 주소여야 합니다.")
+
+    @staticmethod
+    def _is_loopback_host(hostname: str) -> bool:
+        if hostname.lower() == "localhost":
+            return True
+        try:
+            return ipaddress.ip_address(hostname).is_loopback
+        except ValueError:
+            return False
 
 
 @lru_cache

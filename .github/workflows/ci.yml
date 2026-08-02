@@ -37,6 +37,17 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
 
+      - name: Validate production configuration
+        env:
+          APP_ENV: production
+          AUTH_MODE: supabase
+          DATABASE_URL: postgresql+asyncpg://moa:ci-placeholder@database:5432/moa
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          CORS_ORIGINS: https://app.example.com
+          MARKET_DATA_PROVIDER: mock
+        run: python -m app.cli.deployment_preflight --config-only
+
       - name: Run tests
         run: python -m pytest
 
@@ -87,6 +98,15 @@ jobs:
 
       - name: Apply PostgreSQL migrations
         run: python -m alembic upgrade head
+
+      - name: Check production deployment preflight
+        env:
+          APP_ENV: production
+          AUTH_MODE: supabase
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          CORS_ORIGINS: https://app.example.com
+        run: python -m app.cli.deployment_preflight
 
       - name: Check API readiness, account and preferences bootstrap
         run: |

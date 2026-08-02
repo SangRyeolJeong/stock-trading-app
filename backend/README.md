@@ -56,8 +56,11 @@ Supabase 모드에서는 `Authorization: Bearer <access-token>`이 필요합니�
 않으므로 클라이언트가 다른 사용자의 계좌를 선택할 수 없습니다.
 
 `APP_ENV=production`에서는 `AUTH_MODE=supabase`와 Supabase URL/publishable
-key가 모두 없으면 설정 오류로 시작을 중단합니다. secret/service-role 키는
-이 검증에 필요하지 않으며 브라우저나 로그에 노출하지 않습니다.
+key가 모두 없으면 설정 오류로 시작을 중단합니다. Supabase URL과
+`CORS_ORIGINS`는 공개 HTTPS 주소여야 하며 wildcard, localhost, URL 경로를
+허용하지 않습니다. secret/service-role 키는 이 검증에 필요하지 않으며
+브라우저나 로그에 노출하지 않습니다. `MARKET_DATA_PROVIDER=kis`를 선택하면
+KIS app key와 app secret도 시작 전에 검증합니다.
 
 기본 `DATABASE_URL`은 로컬 PostgreSQL의 `moa` 데이터베이스를 가리킵니다.
 PostgreSQL을 준비한 뒤 마이그레이션을 적용합니다.
@@ -77,10 +80,22 @@ cd /home/user/code/stock-trading-app/backend
 .venv/bin/python -m alembic upgrade head
 ```
 
-루트 `compose.yaml`은 개발용 PostgreSQL을 함께 실행하고 백엔드 컨테이너 시작
-시 Alembic 마이그레이션을 적용합니다. 운영 환경에서는 마이그레이션을 배포
-단계의 단일 작업으로 실행해 여러 인스턴스가 동시에 적용하지 않도록 구성하는
-것이 권장됩니다.
+루트 `compose.yaml`은 개발용 PostgreSQL과 일회성 `migrate` 서비스를 함께
+실행합니다. `migrate`가 Alembic 적용을 성공한 뒤에만 백엔드가 시작됩니다.
+백엔드 이미지는 API를 시작할 뿐 자체적으로 마이그레이션하지 않으므로, 운영
+환경에서도 새 이미지로 단일 migration job을 먼저 실행해야 합니다.
+
+운영 설정만 비밀값을 출력하지 않고 점검하려면 다음 명령을 실행합니다.
+
+```bash
+cd /home/user/code/stock-trading-app/backend
+.venv/bin/python -m app.cli.deployment_preflight --config-only
+```
+
+마이그레이션까지 끝난 뒤 `--config-only`를 빼면 PostgreSQL 연결과 현재 Alembic
+revision이 코드의 최신 head와 일치하는지도 확인합니다. 출력에는 환경 종류,
+DB driver, CORS 주소 개수, 시세 공급자만 포함되며 URL, 비밀번호, API key,
+access token은 포함되지 않습니다.
 
 실행 후 확인:
 

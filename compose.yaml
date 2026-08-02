@@ -15,6 +15,25 @@ services:
     volumes:
       - moa-postgres:/var/lib/postgresql/data
 
+  migrate:
+    build:
+      context: ./backend
+    command:
+      - python
+      - -m
+      - alembic
+      - upgrade
+      - head
+    environment:
+      APP_ENV: development
+      AUTH_MODE: demo
+      DATABASE_URL: postgresql+asyncpg://moa:moa-local-only@database:5432/moa
+      MARKET_DATA_PROVIDER: mock
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: "no"
+
   backend:
     build:
       context: ./backend
@@ -27,6 +46,8 @@ services:
     depends_on:
       database:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD
