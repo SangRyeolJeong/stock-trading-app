@@ -30,6 +30,13 @@ const APP_SHORTCUTS: Array<{
     keywords: '절세 세금 tax isa 연금저축 irp',
   },
   {
+    path: '/goal-simulator',
+    title: '투자 목표 계산기',
+    description: '목표 달성률과 필요한 월 투자금 계산',
+    icon: 'target',
+    keywords: '목표 계산기 복리 투자금 시뮬레이션 goal calculator',
+  },
+  {
     path: '/strategy',
     title: '투자전략 추천',
     description: '목표와 위험성향에 맞는 자산배분',

@@ -9,6 +9,9 @@ vi.mock('../components/layout/AppLayout', () => ({
 vi.mock('../pages/TaxPlannerPage', () => ({
   TaxPlannerPage: () => <main>절세 플래너 테스트 화면</main>,
 }));
+vi.mock('../pages/GoalSimulatorPage', () => ({
+  GoalSimulatorPage: () => <main>목표 계산기 테스트 화면</main>,
+}));
 
 describe('AppRouter', () => {
   it('redirects the legacy tax path to the tax planner', async () => {
@@ -19,5 +22,9 @@ describe('AppRouter', () => {
 
     expect(await screen.findByText('절세 플래너 테스트 화면')).toBeInTheDocument();
     await waitFor(() => expect(window.location.pathname).toBe(TAX_PLANNER_PATH));
+
+    window.history.pushState(null, '', '/goal-simulator');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    expect(await screen.findByText('목표 계산기 테스트 화면')).toBeInTheDocument();
   });
 });

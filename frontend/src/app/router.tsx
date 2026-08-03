@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactElement } from 'react';
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
 import { HomePage } from '../pages/HomePage';
+import { GoalSimulatorPage } from '../pages/GoalSimulatorPage';
 import { PortfolioPage } from '../pages/PortfolioPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { StrategyPage } from '../pages/StrategyPage';
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
       { path: '/market/:symbol', element: lazyRoute(<MarketPage />) },
       { path: TAX_PLANNER_PATH, element: <TaxPlannerPage /> },
       { path: LEGACY_TAX_PATH, element: <Navigate to={TAX_PLANNER_PATH} replace /> },
+      { path: '/goal-simulator', element: <GoalSimulatorPage /> },
       { path: '/strategy', element: <StrategyPage /> },
       { path: '/portfolio', element: <PortfolioPage /> },
       { path: '/settings', element: <SettingsPage /> },

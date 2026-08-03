@@ -9,6 +9,7 @@ import { Sidebar } from './Sidebar';
 const pageTitles: Record<string, string> = {
   '/': '홈',
   '/tax-planner': '절세 플래너',
+  '/goal-simulator': '목표 계산기',
   '/strategy': 'AI 투자전략',
   '/portfolio': '내 포트폴리오',
   '/learn': '투자 지식',

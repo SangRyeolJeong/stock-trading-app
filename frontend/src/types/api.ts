@@ -368,3 +368,43 @@ export interface PensionStartComparisonResponse {
   assumptions: string[];
   disclaimer: string;
 }
+
+export interface GoalSimulationRequest {
+  current_assets_krw: number | string;
+  target_amount_krw: number | string;
+  monthly_contribution_krw: number | string;
+  investment_years: number;
+  annual_return_rate_pct: number | string;
+}
+
+export interface GoalMilestone {
+  year: number;
+  contributed_principal: string;
+  projected_value: string;
+  target_achievement_rate_pct: string;
+}
+
+export interface GoalSensitivityScenario {
+  kind: 'lower' | 'base' | 'higher';
+  annual_return_rate_pct: string;
+  projected_value: string;
+  target_achievement_rate_pct: string;
+}
+
+export interface GoalSimulationResponse {
+  engine_version: string;
+  projected_value: string;
+  total_contributed_principal: string;
+  investment_gain: string;
+  target_gap: string;
+  target_surplus: string;
+  target_achievement_rate_pct: string;
+  required_monthly_contribution: string;
+  additional_monthly_contribution: string;
+  required_monthly_within_supported_limit: boolean;
+  milestones: GoalMilestone[];
+  sensitivity: GoalSensitivityScenario[];
+  assumptions: string[];
+  formula: string;
+  disclaimer: string;
+}

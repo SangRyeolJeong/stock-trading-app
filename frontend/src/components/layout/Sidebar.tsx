@@ -7,6 +7,7 @@ const navigation = [
   { path: '/', label: '홈', icon: 'home' as IconName, end: true },
   { path: '/market/QQQM', label: '주식', icon: 'chart' as IconName },
   { path: '/tax-planner', label: '절세 플래너', icon: 'wallet' as IconName, badge: '핵심' },
+  { path: '/goal-simulator', label: '목표 계산기', icon: 'target' as IconName },
   { path: '/strategy', label: 'AI 투자전략', icon: 'sparkles' as IconName },
   { path: '/portfolio', label: '내 포트폴리오', icon: 'pie' as IconName },
   { path: '/learn', label: '투자 지식', icon: 'book' as IconName },
