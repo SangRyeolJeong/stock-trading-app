@@ -4,6 +4,17 @@ import { Link } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
 import { updateUserPreferences, useUserPreferences } from '../data/userPreferences';
+import {
+  buildGoalShareUrl,
+  createGoalSnapshot,
+  deleteGoalSnapshot,
+  loadGoalSnapshots,
+  parseGoalShareParams,
+  saveGoalSnapshot,
+  type GoalScenarioInputs,
+  type GoalSnapshot,
+} from '../data/goalSnapshots';
+import { useToast } from '../app/toast';
 import { goalApi } from '../services/goalApi';
 
 const targetOptions = [100_000_000, 300_000_000, 500_000_000, 1_000_000_000];
@@ -28,13 +39,38 @@ function formatCompactWon(value: string | number) {
   return formatWon(amount);
 }
 
+function formatSavedAt(value: string) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
 export function GoalSimulatorPage() {
   const preferences = useUserPreferences();
-  const [currentAssets, setCurrentAssets] = useState(10_000_000);
-  const [targetAmount, setTargetAmount] = useState(300_000_000);
-  const monthlyContribution = preferences.monthlyInvestmentKrw;
-  const investmentYears = preferences.investmentYears;
-  const returnRate = preferences.annualReturnRatePct;
+  const { showToast } = useToast();
+  const sharedInputs = useMemo(
+    () => parseGoalShareParams(window.location.hash),
+    [],
+  );
+  const [currentAssets, setCurrentAssets] = useState(
+    sharedInputs?.currentAssetsKrw ?? 10_000_000,
+  );
+  const [targetAmount, setTargetAmount] = useState(
+    sharedInputs?.targetAmountKrw ?? 300_000_000,
+  );
+  const [monthlyContribution, setMonthlyContribution] = useState(
+    sharedInputs?.monthlyContributionKrw ?? preferences.monthlyInvestmentKrw,
+  );
+  const [investmentYears, setInvestmentYears] = useState(
+    sharedInputs?.investmentYears ?? preferences.investmentYears,
+  );
+  const [returnRate, setReturnRate] = useState(
+    sharedInputs?.annualReturnRatePct ?? preferences.annualReturnRatePct,
+  );
+  const [snapshots, setSnapshots] = useState(loadGoalSnapshots);
   const simulationQuery = useQuery({
     queryKey: [
       'goal-simulation',
@@ -69,6 +105,70 @@ export function GoalSimulatorPage() {
     1,
   );
   const achievementRate = Number(simulation?.target_achievement_rate_pct ?? 0);
+  const scenarioInputs: GoalScenarioInputs = {
+    currentAssetsKrw: currentAssets,
+    targetAmountKrw: targetAmount,
+    monthlyContributionKrw: monthlyContribution,
+    investmentYears,
+    annualReturnRatePct: returnRate,
+  };
+
+  const updateMonthlyContribution = (value: number) => {
+    setMonthlyContribution(value);
+    updateUserPreferences({ monthlyInvestmentKrw: value });
+  };
+
+  const updateInvestmentYears = (value: number) => {
+    setInvestmentYears(value);
+    updateUserPreferences({ investmentYears: value });
+  };
+
+  const updateReturnRate = (value: number) => {
+    setReturnRate(value);
+    updateUserPreferences({ annualReturnRatePct: value });
+  };
+
+  const saveCurrentResult = () => {
+    if (!simulation) return;
+    try {
+      const snapshot = createGoalSnapshot(scenarioInputs, {
+        projectedValue: simulation.projected_value,
+        achievementRatePct: simulation.target_achievement_rate_pct,
+        requiredMonthlyContribution: simulation.required_monthly_contribution,
+      });
+      setSnapshots(saveGoalSnapshot(snapshot));
+      showToast('목표 계산 결과를 이 브라우저에 저장했습니다.');
+    } catch {
+      showToast('결과를 저장하지 못했습니다. 브라우저 저장소 설정을 확인해주세요.');
+    }
+  };
+
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(buildGoalShareUrl(scenarioInputs));
+      showToast('같은 조건을 재현하는 공유 링크를 복사했습니다.');
+    } catch {
+      showToast('링크를 복사하지 못했습니다. 브라우저 권한을 확인해주세요.');
+    }
+  };
+
+  const loadSnapshot = (snapshot: GoalSnapshot) => {
+    setCurrentAssets(snapshot.inputs.currentAssetsKrw);
+    setTargetAmount(snapshot.inputs.targetAmountKrw);
+    updateMonthlyContribution(snapshot.inputs.monthlyContributionKrw);
+    updateInvestmentYears(snapshot.inputs.investmentYears);
+    updateReturnRate(snapshot.inputs.annualReturnRatePct);
+    showToast('저장한 목표 조건을 불러왔습니다.');
+  };
+
+  const removeSnapshot = (snapshotId: string) => {
+    try {
+      setSnapshots(deleteGoalSnapshot(snapshotId));
+      showToast('저장한 목표 시나리오를 삭제했습니다.');
+    } catch {
+      showToast('저장 결과를 삭제하지 못했습니다.');
+    }
+  };
 
   return (
     <PageContainer className="content-page goal-page">
@@ -92,13 +192,13 @@ export function GoalSimulatorPage() {
           <label>현재 투자 가능 자산</label>
           <div className="money-input"><span>₩</span><input aria-label="현재 투자 가능 자산" type="number" min="0" step="1000000" value={currentAssets} onChange={(event) => setCurrentAssets(Math.max(0, Number(event.target.value)))} /><em>원</em></div>
           <label>월 투자금</label>
-          <div className="money-input"><span>₩</span><input aria-label="월 투자금" type="number" min="10000" step="10000" value={monthlyContribution} onChange={(event) => updateUserPreferences({ monthlyInvestmentKrw: Number(event.target.value) })} /><em>원</em></div>
+          <div className="money-input"><span>₩</span><input aria-label="월 투자금" type="number" min="0" step="10000" value={monthlyContribution} onChange={(event) => updateMonthlyContribution(Math.max(0, Number(event.target.value)))} /><em>원</em></div>
           <label>투자 기간</label>
           <div className="slider-label"><strong>{investmentYears}년</strong><span>{investmentYears >= 20 ? '장기 목표' : '중기 목표'}</span></div>
-          <input className="range-input" type="range" min="3" max="40" value={investmentYears} onChange={(event) => updateUserPreferences({ investmentYears: Number(event.target.value) })} />
-          <div className="range-ends"><span>3년</span><span>40년</span></div>
+          <input className="range-input" type="range" min="1" max="50" value={investmentYears} onChange={(event) => updateInvestmentYears(Number(event.target.value))} />
+          <div className="range-ends"><span>1년</span><span>50년</span></div>
           <label>연 예상 수익률</label>
-          <div className="option-grid three">{[4, 7, 10].map((rate) => <button className={returnRate === rate ? 'active' : ''} key={rate} onClick={() => updateUserPreferences({ annualReturnRatePct: rate })}>{rate}%<Icon name="check" size={15} /></button>)}</div>
+          <div className="option-grid three">{[4, 7, 10].map((rate) => <button className={returnRate === rate ? 'active' : ''} key={rate} onClick={() => updateReturnRate(rate)}>{rate}%<Icon name="check" size={15} /></button>)}</div>
           <div className="form-note"><Icon name="shield" size={17} /><p>입력 수익률이 매년 반복된다는 단순 복리 가정이며 실제 결과를 보장하지 않습니다.</p></div>
         </article>
 
@@ -122,6 +222,11 @@ export function GoalSimulatorPage() {
                 <div><span>현재 조건에서 목표를 맞추려면</span><strong>월 {formatCompactWon(simulation.required_monthly_contribution)}</strong></div>
                 <p>{!simulation.required_monthly_within_supported_limit ? '필요 월 투자금이 계산기 지원 상한인 1억원을 넘습니다. 목표 금액이나 기간을 조정해보세요.' : Number(simulation.additional_monthly_contribution) > 0 ? `현재보다 월 ${formatCompactWon(simulation.additional_monthly_contribution)} 추가가 필요합니다.` : '현재 월 투자 계획으로 목표 금액 이상을 기대하는 계산입니다.'}</p>
               </div>
+              <div className="goal-result-actions">
+                <button onClick={saveCurrentResult}><Icon name="bookmark" size={15} /> 결과 저장</button>
+                <button onClick={copyShareLink}><Icon name="link" size={15} /> 공유 링크 복사</button>
+              </div>
+              <small className="goal-share-note">공유 링크에는 현재 자산·목표·납입 조건이 포함됩니다. 신뢰할 수 있는 사람에게만 보내세요.</small>
               <p className="disclaimer"><Icon name="info" size={14} /> {simulation.disclaimer}</p>
             </>
           ) : <div className="tax-loading">목표까지 필요한 투자 경로를 계산하고 있습니다…</div>}
@@ -162,6 +267,22 @@ export function GoalSimulatorPage() {
           </article>
         </section>
       )}
+
+      <section className="card goal-saved-results">
+        <div className="section-heading"><div><h2>저장한 목표 시나리오</h2><p>이 브라우저에만 보관되며 최대 10개까지 저장합니다.</p></div><span>{snapshots.length}개 저장됨</span></div>
+        {snapshots.length > 0 ? (
+          <div className="goal-snapshot-list">
+            {snapshots.map((snapshot) => (
+              <article key={snapshot.id}>
+                <div><span>{formatSavedAt(snapshot.savedAt)}</span><strong>목표 {formatCompactWon(snapshot.inputs.targetAmountKrw)}</strong><small>월 {formatCompactWon(snapshot.inputs.monthlyContributionKrw)} · {snapshot.inputs.investmentYears}년 · 연 {snapshot.inputs.annualReturnRatePct}%</small></div>
+                <p><span>예상 {formatCompactWon(snapshot.summary.projectedValue)}</span><strong>{snapshot.summary.achievementRatePct}% 달성</strong></p>
+                <button onClick={() => loadSnapshot(snapshot)}>불러오기</button>
+                <button className="delete" aria-label={`${formatSavedAt(snapshot.savedAt)} 목표 시나리오 삭제`} onClick={() => removeSnapshot(snapshot.id)}><Icon name="trash" size={14} /></button>
+              </article>
+            ))}
+          </div>
+        ) : <div className="goal-snapshot-empty"><Icon name="bookmark" size={20} /><span>비교해두고 싶은 계산 결과를 저장해보세요.</span></div>}
+      </section>
     </PageContainer>
   );
 }
