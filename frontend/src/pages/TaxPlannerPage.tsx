@@ -30,11 +30,15 @@ function formatCompactWon(value: string | number) {
 export function TaxPlannerPage() {
   const preferences = useUserPreferences();
   const [selected, setSelected] = useState<TaxAccountType>('pension');
+  const [currentAge, setCurrentAge] = useState(30);
   const annualSalary = preferences.annualSalaryKrw;
   const years = preferences.investmentYears;
   const monthlyContribution = preferences.monthlyInvestmentKrw;
   const returnRate = preferences.annualReturnRatePct;
   const withdrawalAge = preferences.withdrawalAge;
+  const delayYears = 5;
+  const maxCurrentAge = Math.max(18, withdrawalAge - delayYears - 1);
+  const calculationCurrentAge = Math.min(currentAge, maxCurrentAge);
   const simulationQuery = useQuery({
     queryKey: [
       'tax-simulation',
@@ -55,6 +59,27 @@ export function TaxPlannerPage() {
   });
 
   const simulation = simulationQuery.data;
+  const pensionStartQuery = useQuery({
+    queryKey: [
+      'pension-start-comparison',
+      annualSalary,
+      calculationCurrentAge,
+      withdrawalAge,
+      monthlyContribution,
+      returnRate,
+      delayYears,
+    ],
+    queryFn: () => taxApi.comparePensionStart({
+      annual_salary_krw: annualSalary,
+      current_age: calculationCurrentAge,
+      withdrawal_age: withdrawalAge,
+      monthly_contribution_krw: monthlyContribution,
+      annual_return_rate_pct: returnRate,
+      delay_years: delayYears,
+    }),
+    enabled: monthlyContribution > 0,
+  });
+  const pensionStart = pensionStartQuery.data;
   const results = simulation?.results ?? [];
   const winner = results.find((item) => item.account_type === simulation?.best_account_type);
   const account = results.find((item) => item.account_type === selected) ?? winner;
@@ -110,6 +135,55 @@ export function TaxPlannerPage() {
             </>
           ) : <div className="tax-loading">공식 규칙으로 계산하고 있습니다…</div>}
         </article>
+      </section>
+
+      <section className="card pension-start-calculator">
+        <div className="section-heading">
+          <div><span className="label">복리 시간 계산기</span><h2>연금저축, 5년 먼저 시작하면?</h2><p>같은 월 납입액으로 지금 시작할 때와 5년 뒤 시작할 때를 비교합니다.</p></div>
+          <span>{pensionStart?.rules.version ?? '공식 규칙 계산 중'}</span>
+        </div>
+        <div className="pension-start-grid">
+          <div className="pension-age-control">
+            <label>현재 나이</label>
+            <div className="slider-label"><strong>{calculationCurrentAge}세</strong><span>{withdrawalAge}세 수령까지 {withdrawalAge - calculationCurrentAge}년</span></div>
+            <input className="range-input" type="range" min="18" max={maxCurrentAge} value={calculationCurrentAge} onChange={(event) => setCurrentAge(Number(event.target.value))} />
+            <div className="range-ends"><span>18세</span><span>최대 {maxCurrentAge}세</span></div>
+            <div className="pension-input-summary">
+              <span><small>월 납입액</small><strong>{formatCompactWon(monthlyContribution)}</strong></span>
+              <span><small>예상 수익률</small><strong>연 {returnRate}%</strong></span>
+              <span><small>세액공제 구간</small><strong>{annualSalary <= 55_000_000 ? '16.5%' : '13.2%'}</strong></span>
+            </div>
+            <p className="form-note"><Icon name="info" size={16} /> 연 1,800만원 납입한도와 연금저축 세액공제 연 600만원 한도를 적용합니다.</p>
+          </div>
+
+          <div className="pension-start-results">
+            {pensionStartQuery.isError && <div className="data-status error"><span>연금 시작 시점 계산을 불러오지 못했습니다.</span><button onClick={() => pensionStartQuery.refetch()}>다시 시도</button></div>}
+            {pensionStart ? (
+              <>
+                <div className="pension-scenario-grid">
+                  {[pensionStart.start_now, pensionStart.delayed_start].map((scenario, index) => (
+                    <article className={index === 0 ? 'recommended' : ''} key={scenario.start_age}>
+                      <span>{index === 0 ? '지금 시작' : `${delayYears}년 뒤 시작`}</span>
+                      <h3>{scenario.start_age}세부터 {scenario.contribution_years}년</h3>
+                      <small className="scenario-total-label">예상 가치 · 세액공제 포함</small>
+                      <strong>{formatCompactWon(scenario.projected_value_with_tax_credit)}</strong>
+                      <dl>
+                        <div><dt>납입 원금</dt><dd>{formatCompactWon(scenario.total_principal)}</dd></div>
+                        <div><dt>예상 운용자산</dt><dd>{formatCompactWon(scenario.projected_balance)}</dd></div>
+                        <div><dt>누적 세액공제</dt><dd>{formatCompactWon(scenario.contribution_tax_credit)}</dd></div>
+                      </dl>
+                    </article>
+                  ))}
+                </div>
+                <div className="pension-waiting-cost">
+                  <div><span>5년을 기다릴 때 줄어드는 예상 가치</span><strong>{formatCompactWon(pensionStart.projected_value_gap)}</strong></div>
+                  <div><span>{pensionStart.delayed_start.start_age}세에 시작해 따라잡으려면</span><strong>월 {formatCompactWon(pensionStart.delayed_required_monthly_contribution)}</strong><small>{pensionStart.delayed_required_within_pension_limit ? '연금계좌 일반 납입한도 안' : '연 1,800만원 납입한도 초과'}</small></div>
+                </div>
+                <p className="disclaimer"><Icon name="info" size={14} /> {pensionStart.disclaimer}</p>
+              </>
+            ) : <div className="tax-loading">시작 시점에 따른 복리 차이를 계산하고 있습니다…</div>}
+          </div>
+        </div>
       </section>
 
       <section className="account-section">

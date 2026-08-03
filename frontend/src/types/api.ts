@@ -333,3 +333,38 @@ export interface TaxSimulationResponse {
   assumptions: string[];
   disclaimer: string;
 }
+
+export interface PensionStartComparisonRequest {
+  annual_salary_krw: number | string;
+  current_age: number;
+  withdrawal_age: number;
+  monthly_contribution_krw: number | string;
+  annual_return_rate_pct: number | string;
+  delay_years: number;
+}
+
+export interface PensionStartScenario {
+  start_age: number;
+  contribution_years: number;
+  annual_eligible_contribution: string;
+  total_principal: string;
+  projected_balance: string;
+  contribution_tax_credit: string;
+  projected_value_with_tax_credit: string;
+}
+
+export interface PensionStartComparisonResponse {
+  start_now: PensionStartScenario;
+  delayed_start: PensionStartScenario;
+  projected_value_gap: string;
+  delayed_required_monthly_contribution: string;
+  delayed_required_within_pension_limit: boolean;
+  rules: {
+    version: string;
+    effective_date: string;
+    parameters: Record<string, string>;
+    sources: TaxRuleSource[];
+  };
+  assumptions: string[];
+  disclaimer: string;
+}

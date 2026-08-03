@@ -1,6 +1,9 @@
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 
 from app.schemas.tax import (
+    PensionStartComparisonRequest,
+    PensionStartComparisonResponse,
+    PensionStartScenario,
     TaxAccountResult,
     TaxRuleSource,
     TaxRuleSummary,
@@ -31,6 +34,40 @@ class TaxCalculationService:
     def overseas_capital_gains_tax(self, capital_gain: Decimal) -> Decimal:
         taxable_gain = max(capital_gain - self.rules.overseas_capital_gains_deduction, ZERO)
         return won(taxable_gain * self.rules.overseas_capital_gains_tax_rate)
+
+    def _pension_credit_rate(self, annual_salary: Decimal) -> Decimal:
+        return (
+            self.rules.pension_low_income_credit_rate
+            if annual_salary <= self.rules.pension_low_income_salary_threshold
+            else self.rules.pension_high_income_credit_rate
+        )
+
+    def _rule_summary(self) -> TaxRuleSummary:
+        rules = self.rules
+        return TaxRuleSummary(
+            version=rules.version,
+            effective_date=rules.effective_date,
+            parameters={
+                "isa_annual_limit_krw": str(rules.isa_annual_contribution_limit),
+                "isa_total_limit_krw": str(rules.isa_total_contribution_limit),
+                "pension_total_contribution_limit_krw": str(
+                    rules.pension_total_contribution_limit
+                ),
+                "pension_savings_credit_limit_krw": str(
+                    rules.pension_savings_credit_limit
+                ),
+                "retirement_pension_credit_limit_krw": str(
+                    rules.retirement_pension_credit_limit
+                ),
+                "overseas_capital_gains_deduction_krw": str(
+                    rules.overseas_capital_gains_deduction
+                ),
+            },
+            sources=[
+                TaxRuleSource(title=source.title, url=source.url, authority=source.authority)
+                for source in rules.sources
+            ],
+        )
 
     def _direct_result(
         self,
@@ -135,11 +172,7 @@ class TaxCalculationService:
         overflow_principal = won(sum(overflow_contributions, ZERO))
         credited_principal = won(min(eligible_annual, credit_limit) * years)
         noncredited_principal = eligible_principal - credited_principal
-        credit_rate = (
-            self.rules.pension_low_income_credit_rate
-            if annual_salary <= self.rules.pension_low_income_salary_threshold
-            else self.rules.pension_high_income_credit_rate
-        )
+        credit_rate = self._pension_credit_rate(annual_salary)
         contribution_tax_credit = won(credited_principal * credit_rate)
         pension_gross = future_value(eligible_contributions, annual_rate)
         overflow_gross = future_value(overflow_contributions, annual_rate)
@@ -184,6 +217,128 @@ class TaxCalculationService:
                 ["55세 이전 인출 시 세제상 불이익 가능", "연금수령 한도와 기간을 별도 확인"]
                 if is_pension
                 else ["법정 사유 외 중도인출 제약", "위험자산 투자 한도 70%를 반영한 상품 구성이 필요"]
+            ),
+        )
+
+    def _pension_start_scenario(
+        self,
+        *,
+        start_age: int,
+        withdrawal_age: int,
+        monthly_contribution: Decimal,
+        annual_rate: Decimal,
+        credit_rate: Decimal,
+    ) -> PensionStartScenario:
+        contribution_years = withdrawal_age - start_age
+        annual_contribution = won(monthly_contribution * Decimal("12"))
+        eligible_annual = min(
+            annual_contribution,
+            self.rules.pension_total_contribution_limit,
+        )
+        total_principal = won(eligible_annual * contribution_years)
+        projected_balance = future_value(
+            [eligible_annual] * contribution_years,
+            annual_rate,
+        )
+        annual_creditable = min(
+            eligible_annual,
+            self.rules.pension_savings_credit_limit,
+        )
+        contribution_tax_credit = won(
+            annual_creditable * credit_rate * contribution_years
+        )
+        return PensionStartScenario(
+            start_age=start_age,
+            contribution_years=contribution_years,
+            annual_eligible_contribution=eligible_annual,
+            total_principal=total_principal,
+            projected_balance=projected_balance,
+            contribution_tax_credit=contribution_tax_credit,
+            projected_value_with_tax_credit=won(
+                projected_balance + contribution_tax_credit
+            ),
+        )
+
+    @staticmethod
+    def _future_value_factor(years: int, annual_rate: Decimal) -> Decimal:
+        factor = ZERO
+        for _ in range(years):
+            factor = factor * (Decimal("1") + annual_rate) + Decimal("1")
+        return factor
+
+    def _required_delayed_monthly_contribution(
+        self,
+        *,
+        target_value: Decimal,
+        years: int,
+        annual_rate: Decimal,
+        credit_rate: Decimal,
+    ) -> Decimal:
+        factor = self._future_value_factor(years, annual_rate)
+        credit_limit = self.rules.pension_savings_credit_limit
+        credit_value_per_won = credit_rate * years
+        value_at_credit_limit = credit_limit * (factor + credit_value_per_won)
+        if target_value <= value_at_credit_limit:
+            required_annual = target_value / (factor + credit_value_per_won)
+        else:
+            required_annual = (
+                target_value - credit_limit * credit_value_per_won
+            ) / factor
+        return (required_annual / Decimal("12")).quantize(
+            WON,
+            rounding=ROUND_CEILING,
+        )
+
+    def compare_pension_start(
+        self,
+        request: PensionStartComparisonRequest,
+    ) -> PensionStartComparisonResponse:
+        annual_rate = request.annual_return_rate_pct / Decimal("100")
+        credit_rate = self._pension_credit_rate(request.annual_salary_krw)
+        start_now = self._pension_start_scenario(
+            start_age=request.current_age,
+            withdrawal_age=request.withdrawal_age,
+            monthly_contribution=request.monthly_contribution_krw,
+            annual_rate=annual_rate,
+            credit_rate=credit_rate,
+        )
+        delayed_start = self._pension_start_scenario(
+            start_age=request.current_age + request.delay_years,
+            withdrawal_age=request.withdrawal_age,
+            monthly_contribution=request.monthly_contribution_krw,
+            annual_rate=annual_rate,
+            credit_rate=credit_rate,
+        )
+        required_monthly = self._required_delayed_monthly_contribution(
+            target_value=start_now.projected_value_with_tax_credit,
+            years=delayed_start.contribution_years,
+            annual_rate=annual_rate,
+            credit_rate=credit_rate,
+        )
+        return PensionStartComparisonResponse(
+            start_now=start_now,
+            delayed_start=delayed_start,
+            projected_value_gap=won(
+                start_now.projected_value_with_tax_credit
+                - delayed_start.projected_value_with_tax_credit
+            ),
+            delayed_required_monthly_contribution=required_monthly,
+            delayed_required_within_pension_limit=(
+                required_monthly * Decimal("12")
+                <= self.rules.pension_total_contribution_limit
+            ),
+            rules=self._rule_summary(),
+            assumptions=[
+                "매년 말에 연간 납입액을 넣고 입력 수익률로 복리 운용합니다.",
+                "연금계좌 일반 납입한도인 연 1,800만원까지만 계산에 포함합니다.",
+                "연금저축 세액공제는 연 600만원 한도와 입력 총급여 구간의 공제율을 적용합니다.",
+                "공제 대상 납입액에 대해 결정세액이 충분해 계산된 세액공제를 전액 받는다고 가정합니다.",
+                "세액공제 환급액은 재투자하지 않고 예상 가치에 단순 합산합니다.",
+                "물가, 수수료, 수익률 변동과 연금 수령 단계의 세금은 제외합니다.",
+            ],
+            disclaimer=(
+                "시작 시점의 복리 차이를 이해하기 위한 추정치이며 실제 수익이나 "
+                "세액공제를 보장하지 않습니다."
             ),
         )
 
@@ -233,25 +388,10 @@ class TaxCalculationService:
             )
         best = max(scored_results, key=lambda result: result.after_tax_value)
 
-        rules = self.rules
         return TaxSimulationResponse(
             best_account_type=best.account_type,
             results=scored_results,
-            rules=TaxRuleSummary(
-                version=rules.version,
-                effective_date=rules.effective_date,
-                parameters={
-                    "isa_annual_limit_krw": str(rules.isa_annual_contribution_limit),
-                    "isa_total_limit_krw": str(rules.isa_total_contribution_limit),
-                    "pension_savings_credit_limit_krw": str(rules.pension_savings_credit_limit),
-                    "retirement_pension_credit_limit_krw": str(rules.retirement_pension_credit_limit),
-                    "overseas_capital_gains_deduction_krw": str(rules.overseas_capital_gains_deduction),
-                },
-                sources=[
-                    TaxRuleSource(title=source.title, url=source.url, authority=source.authority)
-                    for source in rules.sources
-                ],
-            ),
+            rules=self._rule_summary(),
             assumptions=[
                 "매년 말에 연간 투자금을 납입하고 입력 수익률로 복리 운용합니다.",
                 "모든 자산은 마지막 해에 일괄 처분·수령하며 수수료와 환율 변동은 제외합니다.",

@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from app.schemas.tax import TaxSimulationRequest
+from app.schemas.tax import PensionStartComparisonRequest, TaxSimulationRequest
 from app.services.tax import TaxCalculationService
 
 service = TaxCalculationService()
@@ -89,3 +89,64 @@ def test_simulation_exposes_versioned_rules_and_assumptions() -> None:
     assert len(simulation.rules.sources) >= 4
     assert simulation.best_account_type in {"direct", "isa", "pension", "irp"}
     assert simulation.assumptions
+
+
+def pension_start_request(
+    *,
+    salary: str = "45000000",
+    current_age: int = 30,
+    withdrawal_age: int = 60,
+    monthly: str = "500000",
+    return_rate: str = "7",
+    delay_years: int = 5,
+) -> PensionStartComparisonRequest:
+    return PensionStartComparisonRequest(
+        annual_salary_krw=salary,
+        current_age=current_age,
+        withdrawal_age=withdrawal_age,
+        monthly_contribution_krw=monthly,
+        annual_return_rate_pct=return_rate,
+        delay_years=delay_years,
+    )
+
+
+def test_pension_start_comparison_quantifies_the_cost_of_waiting() -> None:
+    comparison = service.compare_pension_start(pension_start_request())
+
+    assert comparison.start_now.contribution_years == 30
+    assert comparison.delayed_start.contribution_years == 25
+    assert comparison.start_now.total_principal == Decimal("180000000")
+    assert comparison.delayed_start.total_principal == Decimal("150000000")
+    assert comparison.start_now.contribution_tax_credit == Decimal("29700000")
+    assert comparison.delayed_start.contribution_tax_credit == Decimal("24750000")
+    assert comparison.projected_value_gap > Decimal("0")
+    assert comparison.delayed_required_monthly_contribution > Decimal("500000")
+    assert comparison.delayed_required_within_pension_limit is True
+
+    catch_up = service.compare_pension_start(
+        pension_start_request(
+            current_age=35,
+            monthly=str(comparison.delayed_required_monthly_contribution),
+        )
+    )
+    assert (
+        catch_up.start_now.projected_value_with_tax_credit
+        >= comparison.start_now.projected_value_with_tax_credit
+    )
+
+
+def test_pension_start_comparison_caps_eligible_annual_contribution() -> None:
+    comparison = service.compare_pension_start(
+        pension_start_request(monthly="2000000")
+    )
+
+    assert comparison.start_now.annual_eligible_contribution == Decimal("18000000")
+    assert comparison.start_now.total_principal == Decimal("540000000")
+
+
+def test_pension_start_comparison_uses_salary_credit_rate() -> None:
+    low_income = service.compare_pension_start(pension_start_request(salary="55000000"))
+    high_income = service.compare_pension_start(pension_start_request(salary="55000001"))
+
+    assert low_income.start_now.contribution_tax_credit == Decimal("29700000")
+    assert high_income.start_now.contribution_tax_credit == Decimal("23760000")
