@@ -32,9 +32,9 @@ const APP_SHORTCUTS: Array<{
   {
     path: '/goal-simulator',
     title: '투자 목표 계산기',
-    description: '목표 달성률과 필요한 월 투자금 계산',
+    description: '물가와 투자금 증액을 반영한 목표 달성 경로',
     icon: 'target',
-    keywords: '목표 계산기 복리 투자금 시뮬레이션 goal calculator',
+    keywords: '목표 계산기 복리 물가 현재가치 투자금 증액 시뮬레이션 goal calculator',
   },
   {
     path: '/strategy',

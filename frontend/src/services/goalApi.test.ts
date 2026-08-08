@@ -19,6 +19,9 @@ describe('goalApi', () => {
       monthly_contribution_krw: 500_000,
       investment_years: 20,
       annual_return_rate_pct: 7,
+      annual_inflation_rate_pct: 2,
+      target_amount_in_today_money: true,
+      annual_contribution_growth_rate_pct: 3,
     };
 
     await goalApi.simulate(request);

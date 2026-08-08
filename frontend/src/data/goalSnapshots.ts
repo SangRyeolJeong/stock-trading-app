@@ -4,16 +4,22 @@ export interface GoalScenarioInputs {
   monthlyContributionKrw: number;
   investmentYears: number;
   annualReturnRatePct: number;
+  annualInflationRatePct: number;
+  targetAmountInTodayMoney: boolean;
+  annualContributionGrowthRatePct: number;
 }
 
 export interface GoalSnapshotSummary {
   projectedValue: string;
   achievementRatePct: string;
   requiredMonthlyContribution: string;
+  effectiveTargetAmount: string;
+  projectedValueInTodayMoney: string;
 }
 
 export interface GoalSnapshot {
   id: string;
+  name: string;
   savedAt: string;
   inputs: GoalScenarioInputs;
   summary: GoalSnapshotSummary;
@@ -21,6 +27,17 @@ export interface GoalSnapshot {
 
 const STORAGE_KEY = 'moa-goal-snapshots-v1';
 const MAX_SNAPSHOTS = 10;
+export const MAX_GOAL_COMPARISON_SNAPSHOTS = 2;
+const MAX_SNAPSHOT_NAME_LENGTH = 40;
+
+function normalizeSnapshotName(value: unknown) {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/\s+/g, ' ').slice(0, MAX_SNAPSHOT_NAME_LENGTH);
+}
+
+function defaultSnapshotName(inputs: GoalScenarioInputs) {
+  return `목표 ${inputs.targetAmountKrw.toLocaleString('ko-KR')}원 · ${inputs.investmentYears}년`;
+}
 
 function isFiniteInRange(value: unknown, minimum: number, maximum: number) {
   const number = Number(value);
@@ -30,6 +47,9 @@ function isFiniteInRange(value: unknown, minimum: number, maximum: number) {
 function sanitizeInputs(value: unknown): GoalScenarioInputs | null {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<GoalScenarioInputs>;
+  const annualInflationRatePct = candidate.annualInflationRatePct ?? 0;
+  const targetAmountInTodayMoney = candidate.targetAmountInTodayMoney ?? false;
+  const annualContributionGrowthRatePct = candidate.annualContributionGrowthRatePct ?? 0;
   if (
     !isFiniteInRange(candidate.currentAssetsKrw, 0, 1_000_000_000_000)
     || !isFiniteInRange(candidate.targetAmountKrw, 1, 10_000_000_000_000)
@@ -37,6 +57,9 @@ function sanitizeInputs(value: unknown): GoalScenarioInputs | null {
     || !isFiniteInRange(candidate.investmentYears, 1, 50)
     || !Number.isInteger(Number(candidate.investmentYears))
     || !isFiniteInRange(candidate.annualReturnRatePct, -100, 30)
+    || !isFiniteInRange(annualInflationRatePct, 0, 20)
+    || typeof targetAmountInTodayMoney !== 'boolean'
+    || !isFiniteInRange(annualContributionGrowthRatePct, 0, 20)
   ) return null;
   return {
     currentAssetsKrw: Number(candidate.currentAssetsKrw),
@@ -44,16 +67,24 @@ function sanitizeInputs(value: unknown): GoalScenarioInputs | null {
     monthlyContributionKrw: Number(candidate.monthlyContributionKrw),
     investmentYears: Number(candidate.investmentYears),
     annualReturnRatePct: Number(candidate.annualReturnRatePct),
+    annualInflationRatePct: Number(annualInflationRatePct),
+    targetAmountInTodayMoney,
+    annualContributionGrowthRatePct: Number(annualContributionGrowthRatePct),
   };
 }
 
-function sanitizeSummary(value: unknown): GoalSnapshotSummary | null {
+function sanitizeSummary(
+  value: unknown,
+  inputs: GoalScenarioInputs,
+): GoalSnapshotSummary | null {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<GoalSnapshotSummary>;
   const values = [
     candidate.projectedValue,
     candidate.achievementRatePct,
     candidate.requiredMonthlyContribution,
+    candidate.effectiveTargetAmount ?? inputs.targetAmountKrw,
+    candidate.projectedValueInTodayMoney ?? candidate.projectedValue,
   ];
   if (values.some((item) => !Number.isFinite(Number(item)) || Number(item) < 0)) {
     return null;
@@ -62,6 +93,12 @@ function sanitizeSummary(value: unknown): GoalSnapshotSummary | null {
     projectedValue: String(candidate.projectedValue),
     achievementRatePct: String(candidate.achievementRatePct),
     requiredMonthlyContribution: String(candidate.requiredMonthlyContribution),
+    effectiveTargetAmount: String(
+      candidate.effectiveTargetAmount ?? inputs.targetAmountKrw,
+    ),
+    projectedValueInTodayMoney: String(
+      candidate.projectedValueInTodayMoney ?? candidate.projectedValue,
+    ),
   };
 }
 
@@ -69,7 +106,7 @@ function sanitizeSnapshot(value: unknown): GoalSnapshot | null {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<GoalSnapshot>;
   const inputs = sanitizeInputs(candidate.inputs);
-  const summary = sanitizeSummary(candidate.summary);
+  const summary = inputs ? sanitizeSummary(candidate.summary, inputs) : null;
   if (
     typeof candidate.id !== 'string'
     || !candidate.id
@@ -78,7 +115,13 @@ function sanitizeSnapshot(value: unknown): GoalSnapshot | null {
     || !inputs
     || !summary
   ) return null;
-  return { id: candidate.id, savedAt: candidate.savedAt, inputs, summary };
+  return {
+    id: candidate.id,
+    name: normalizeSnapshotName(candidate.name) || defaultSnapshotName(inputs),
+    savedAt: candidate.savedAt,
+    inputs,
+    summary,
+  };
 }
 
 export function parseGoalShareParams(fragment: string): GoalScenarioInputs | null {
@@ -86,12 +129,16 @@ export function parseGoalShareParams(fragment: string): GoalScenarioInputs | nul
   if (!['current', 'target', 'monthly', 'years', 'return'].every((key) => params.has(key))) {
     return null;
   }
+  if (params.has('today') && !['0', '1'].includes(params.get('today') ?? '')) return null;
   return sanitizeInputs({
     currentAssetsKrw: params.get('current'),
     targetAmountKrw: params.get('target'),
     monthlyContributionKrw: params.get('monthly'),
     investmentYears: params.get('years'),
     annualReturnRatePct: params.get('return'),
+    annualInflationRatePct: params.get('inflation') ?? 0,
+    targetAmountInTodayMoney: params.get('today') === '1',
+    annualContributionGrowthRatePct: params.get('growth') ?? 0,
   });
 }
 
@@ -108,6 +155,9 @@ export function buildGoalShareUrl(
   params.set('monthly', String(sanitized.monthlyContributionKrw));
   params.set('years', String(sanitized.investmentYears));
   params.set('return', String(sanitized.annualReturnRatePct));
+  params.set('inflation', String(sanitized.annualInflationRatePct));
+  params.set('today', sanitized.targetAmountInTodayMoney ? '1' : '0');
+  params.set('growth', String(sanitized.annualContributionGrowthRatePct));
   url.hash = params.toString();
   return url.toString();
 }
@@ -116,9 +166,12 @@ export function createGoalSnapshot(
   inputs: GoalScenarioInputs,
   summary: GoalSnapshotSummary,
   now = new Date(),
+  name = '',
 ): GoalSnapshot {
   const sanitizedInputs = sanitizeInputs(inputs);
-  const sanitizedSummary = sanitizeSummary(summary);
+  const sanitizedSummary = sanitizedInputs
+    ? sanitizeSummary(summary, sanitizedInputs)
+    : null;
   if (!sanitizedInputs || !sanitizedSummary) {
     throw new Error('저장할 목표 계산 결과가 올바르지 않습니다.');
   }
@@ -126,6 +179,7 @@ export function createGoalSnapshot(
     ?? `${now.getTime()}-${Math.random().toString(36).slice(2)}`;
   return {
     id: `goal-${randomId}`,
+    name: normalizeSnapshotName(name) || defaultSnapshotName(sanitizedInputs),
     savedAt: now.toISOString(),
     inputs: sanitizedInputs,
     summary: sanitizedSummary,
@@ -160,4 +214,29 @@ export function deleteGoalSnapshot(snapshotId: string): GoalSnapshot[] {
   const next = loadGoalSnapshots().filter((item) => item.id !== snapshotId);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   return next;
+}
+
+export function updateGoalSnapshotName(snapshotId: string, name: string): GoalSnapshot[] {
+  const sanitizedName = normalizeSnapshotName(name);
+  if (!sanitizedName) throw new Error('시나리오 이름을 입력해주세요.');
+  const snapshots = loadGoalSnapshots();
+  if (!snapshots.some((snapshot) => snapshot.id === snapshotId)) {
+    throw new Error('이름을 변경할 시나리오를 찾지 못했습니다.');
+  }
+  const next = snapshots.map((snapshot) => (
+    snapshot.id === snapshotId ? { ...snapshot, name: sanitizedName } : snapshot
+  ));
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  return next;
+}
+
+export function toggleGoalComparisonSelection(
+  selectedIds: string[],
+  snapshotId: string,
+): string[] {
+  if (selectedIds.includes(snapshotId)) {
+    return selectedIds.filter((id) => id !== snapshotId);
+  }
+  if (selectedIds.length >= MAX_GOAL_COMPARISON_SNAPSHOTS) return selectedIds;
+  return [...selectedIds, snapshotId];
 }

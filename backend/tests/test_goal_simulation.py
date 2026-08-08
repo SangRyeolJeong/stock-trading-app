@@ -13,6 +13,9 @@ def request(
     monthly: str = "500000",
     years: int = 10,
     return_rate: str = "0",
+    inflation_rate: str = "0",
+    target_in_today_money: bool = False,
+    contribution_growth_rate: str = "0",
 ) -> GoalSimulationRequest:
     return GoalSimulationRequest(
         current_assets_krw=current_assets,
@@ -20,6 +23,9 @@ def request(
         monthly_contribution_krw=monthly,
         investment_years=years,
         annual_return_rate_pct=return_rate,
+        annual_inflation_rate_pct=inflation_rate,
+        target_amount_in_today_money=target_in_today_money,
+        annual_contribution_growth_rate_pct=contribution_growth_rate,
     )
 
 
@@ -33,6 +39,8 @@ def test_zero_return_exposes_principal_gap_and_required_monthly_amount() -> None
     assert result.target_achievement_rate_pct == Decimal("70.0")
     assert result.required_monthly_contribution == Decimal("750000")
     assert result.additional_monthly_contribution == Decimal("250000")
+    assert result.effective_target_amount_krw == Decimal("100000000")
+    assert result.projected_value_in_today_money == result.projected_value
 
 
 def test_positive_return_builds_yearly_milestones_and_sensitivity() -> None:
@@ -59,7 +67,42 @@ def test_positive_return_builds_yearly_milestones_and_sensitivity() -> None:
             monthly=str(result.required_monthly_contribution),
         )
     )
-    assert catch_up.projected_value >= goal_request.target_amount_krw
+    assert catch_up.projected_value >= result.effective_target_amount_krw
+
+
+def test_inflation_adjusted_target_and_growing_contributions() -> None:
+    goal_request = request(
+        current_assets="0",
+        target="2500000",
+        monthly="100000",
+        years=2,
+        inflation_rate="5",
+        target_in_today_money=True,
+        contribution_growth_rate="10",
+    )
+
+    result = service.simulate(goal_request)
+
+    assert result.effective_target_amount_krw == Decimal("2756250")
+    assert result.projected_value == Decimal("2520000")
+    assert result.projected_value_in_today_money == Decimal("2285714")
+    assert result.total_contributed_principal == Decimal("2520000")
+    assert result.milestones[0].annual_contribution == Decimal("1200000")
+    assert result.milestones[1].annual_contribution == Decimal("1320000")
+    assert result.required_monthly_contribution == Decimal("109375")
+
+    catch_up = service.simulate(
+        request(
+            current_assets="0",
+            target="2500000",
+            monthly=str(result.required_monthly_contribution),
+            years=2,
+            inflation_rate="5",
+            target_in_today_money=True,
+            contribution_growth_rate="10",
+        )
+    )
+    assert catch_up.projected_value >= result.effective_target_amount_krw
 
 
 def test_target_already_covered_requires_no_new_contribution() -> None:

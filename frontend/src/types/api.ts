@@ -375,11 +375,15 @@ export interface GoalSimulationRequest {
   monthly_contribution_krw: number | string;
   investment_years: number;
   annual_return_rate_pct: number | string;
+  annual_inflation_rate_pct: number | string;
+  target_amount_in_today_money: boolean;
+  annual_contribution_growth_rate_pct: number | string;
 }
 
 export interface GoalMilestone {
   year: number;
   contributed_principal: string;
+  annual_contribution: string;
   projected_value: string;
   target_achievement_rate_pct: string;
 }
@@ -394,6 +398,8 @@ export interface GoalSensitivityScenario {
 export interface GoalSimulationResponse {
   engine_version: string;
   projected_value: string;
+  projected_value_in_today_money: string;
+  effective_target_amount_krw: string;
   total_contributed_principal: string;
   investment_gain: string;
   target_gap: string;

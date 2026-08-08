@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
@@ -9,8 +9,11 @@ import {
   createGoalSnapshot,
   deleteGoalSnapshot,
   loadGoalSnapshots,
+  MAX_GOAL_COMPARISON_SNAPSHOTS,
   parseGoalShareParams,
   saveGoalSnapshot,
+  toggleGoalComparisonSelection,
+  updateGoalSnapshotName,
   type GoalScenarioInputs,
   type GoalSnapshot,
 } from '../data/goalSnapshots';
@@ -70,7 +73,20 @@ export function GoalSimulatorPage() {
   const [returnRate, setReturnRate] = useState(
     sharedInputs?.annualReturnRatePct ?? preferences.annualReturnRatePct,
   );
+  const [inflationRate, setInflationRate] = useState(
+    sharedInputs?.annualInflationRatePct ?? 2,
+  );
+  const [targetInTodayMoney, setTargetInTodayMoney] = useState(
+    sharedInputs?.targetAmountInTodayMoney ?? false,
+  );
+  const [contributionGrowthRate, setContributionGrowthRate] = useState(
+    sharedInputs?.annualContributionGrowthRatePct ?? 0,
+  );
   const [snapshots, setSnapshots] = useState(loadGoalSnapshots);
+  const [comparisonIds, setComparisonIds] = useState<string[]>([]);
+  const [snapshotName, setSnapshotName] = useState('');
+  const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
+  const [editingSnapshotName, setEditingSnapshotName] = useState('');
   const simulationQuery = useQuery({
     queryKey: [
       'goal-simulation',
@@ -79,6 +95,9 @@ export function GoalSimulatorPage() {
       monthlyContribution,
       investmentYears,
       returnRate,
+      inflationRate,
+      targetInTodayMoney,
+      contributionGrowthRate,
     ],
     queryFn: () => goalApi.simulate({
       current_assets_krw: currentAssets,
@@ -86,6 +105,9 @@ export function GoalSimulatorPage() {
       monthly_contribution_krw: monthlyContribution,
       investment_years: investmentYears,
       annual_return_rate_pct: returnRate,
+      annual_inflation_rate_pct: inflationRate,
+      target_amount_in_today_money: targetInTodayMoney,
+      annual_contribution_growth_rate_pct: contributionGrowthRate,
     }),
     enabled: targetAmount > 0 && monthlyContribution >= 0,
   });
@@ -100,7 +122,7 @@ export function GoalSimulatorPage() {
     ));
   }, [investmentYears, simulation]);
   const chartMaximum = Math.max(
-    targetAmount,
+    Number(simulation?.effective_target_amount_krw ?? targetAmount),
     Number(simulation?.projected_value ?? 0),
     1,
   );
@@ -111,7 +133,13 @@ export function GoalSimulatorPage() {
     monthlyContributionKrw: monthlyContribution,
     investmentYears,
     annualReturnRatePct: returnRate,
+    annualInflationRatePct: inflationRate,
+    targetAmountInTodayMoney: targetInTodayMoney,
+    annualContributionGrowthRatePct: contributionGrowthRate,
   };
+  const comparisonSnapshots = comparisonIds
+    .map((id) => snapshots.find((snapshot) => snapshot.id === id))
+    .filter((snapshot): snapshot is GoalSnapshot => snapshot !== undefined);
 
   const updateMonthlyContribution = (value: number) => {
     setMonthlyContribution(value);
@@ -135,9 +163,12 @@ export function GoalSimulatorPage() {
         projectedValue: simulation.projected_value,
         achievementRatePct: simulation.target_achievement_rate_pct,
         requiredMonthlyContribution: simulation.required_monthly_contribution,
-      });
+        effectiveTargetAmount: simulation.effective_target_amount_krw,
+        projectedValueInTodayMoney: simulation.projected_value_in_today_money,
+      }, new Date(), snapshotName);
       setSnapshots(saveGoalSnapshot(snapshot));
-      showToast('목표 계산 결과를 이 브라우저에 저장했습니다.');
+      setSnapshotName('');
+      showToast(`'${snapshot.name}' 시나리오를 이 브라우저에 저장했습니다.`);
     } catch {
       showToast('결과를 저장하지 못했습니다. 브라우저 저장소 설정을 확인해주세요.');
     }
@@ -158,15 +189,49 @@ export function GoalSimulatorPage() {
     updateMonthlyContribution(snapshot.inputs.monthlyContributionKrw);
     updateInvestmentYears(snapshot.inputs.investmentYears);
     updateReturnRate(snapshot.inputs.annualReturnRatePct);
+    setInflationRate(snapshot.inputs.annualInflationRatePct);
+    setTargetInTodayMoney(snapshot.inputs.targetAmountInTodayMoney);
+    setContributionGrowthRate(snapshot.inputs.annualContributionGrowthRatePct);
     showToast('저장한 목표 조건을 불러왔습니다.');
   };
 
   const removeSnapshot = (snapshotId: string) => {
     try {
       setSnapshots(deleteGoalSnapshot(snapshotId));
+      setComparisonIds((current) => current.filter((id) => id !== snapshotId));
+      if (editingSnapshotId === snapshotId) setEditingSnapshotId(null);
       showToast('저장한 목표 시나리오를 삭제했습니다.');
     } catch {
       showToast('저장 결과를 삭제하지 못했습니다.');
+    }
+  };
+
+  const toggleComparison = (snapshotId: string) => {
+    if (
+      !comparisonIds.includes(snapshotId)
+      && comparisonIds.length >= MAX_GOAL_COMPARISON_SNAPSHOTS
+    ) {
+      showToast('비교할 시나리오는 2개까지 선택할 수 있습니다.');
+      return;
+    }
+    setComparisonIds((current) => toggleGoalComparisonSelection(current, snapshotId));
+  };
+
+  const startRenaming = (snapshot: GoalSnapshot) => {
+    setEditingSnapshotId(snapshot.id);
+    setEditingSnapshotName(snapshot.name);
+  };
+
+  const renameSnapshot = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingSnapshotId) return;
+    try {
+      setSnapshots(updateGoalSnapshotName(editingSnapshotId, editingSnapshotName));
+      setEditingSnapshotId(null);
+      setEditingSnapshotName('');
+      showToast('시나리오 이름을 변경했습니다.');
+    } catch {
+      showToast('시나리오 이름을 입력해주세요.');
     }
   };
 
@@ -189,6 +254,11 @@ export function GoalSimulatorPage() {
             ))}
           </div>
           <div className="money-input"><span>₩</span><input aria-label="목표 금액" type="number" min="1" step="1000000" value={targetAmount} onChange={(event) => setTargetAmount(Math.max(1, Number(event.target.value)))} /><em>원</em></div>
+          <label>목표 금액 기준</label>
+          <div className="segmented">
+            <button className={!targetInTodayMoney ? 'active' : ''} onClick={() => setTargetInTodayMoney(false)}>만기 명목금액</button>
+            <button className={targetInTodayMoney ? 'active' : ''} onClick={() => setTargetInTodayMoney(true)}>현재 구매력</button>
+          </div>
           <label>현재 투자 가능 자산</label>
           <div className="money-input"><span>₩</span><input aria-label="현재 투자 가능 자산" type="number" min="0" step="1000000" value={currentAssets} onChange={(event) => setCurrentAssets(Math.max(0, Number(event.target.value)))} /><em>원</em></div>
           <label>월 투자금</label>
@@ -199,7 +269,11 @@ export function GoalSimulatorPage() {
           <div className="range-ends"><span>1년</span><span>50년</span></div>
           <label>연 예상 수익률</label>
           <div className="option-grid three">{[4, 7, 10].map((rate) => <button className={returnRate === rate ? 'active' : ''} key={rate} onClick={() => updateReturnRate(rate)}>{rate}%<Icon name="check" size={15} /></button>)}</div>
-          <div className="form-note"><Icon name="shield" size={17} /><p>입력 수익률이 매년 반복된다는 단순 복리 가정이며 실제 결과를 보장하지 않습니다.</p></div>
+          <div className="goal-planning-assumptions">
+            <label><span>연 물가상승률</span><div><input aria-label="연 물가상승률" type="number" min="0" max="20" step="0.1" value={inflationRate} onChange={(event) => setInflationRate(Math.min(20, Math.max(0, Number(event.target.value))))} /><em>%</em></div></label>
+            <label><span>연 투자금 증액률</span><div><input aria-label="연 투자금 증액률" type="number" min="0" max="20" step="0.1" value={contributionGrowthRate} onChange={(event) => setContributionGrowthRate(Math.min(20, Math.max(0, Number(event.target.value))))} /><em>%</em></div></label>
+          </div>
+          <div className="form-note"><Icon name="shield" size={17} /><p>수익률·물가·투자금 증액률이 매년 일정하다는 가정이며 실제 결과를 보장하지 않습니다.</p></div>
         </article>
 
         <article className="card goal-result">
@@ -210,7 +284,7 @@ export function GoalSimulatorPage() {
               <div className="goal-result-hero">
                 <span>{investmentYears}년 뒤 예상 자산</span>
                 <strong>{formatCompactWon(simulation.projected_value)}</strong>
-                <p>목표 {formatCompactWon(targetAmount)}의 <b>{achievementRate.toLocaleString('ko-KR')}%</b></p>
+                <p>{targetInTodayMoney ? `현재가치 ${formatCompactWon(targetAmount)} → 만기 목표 ${formatCompactWon(simulation.effective_target_amount_krw)}` : `만기 목표 ${formatCompactWon(simulation.effective_target_amount_krw)}`}의 <b>{achievementRate.toLocaleString('ko-KR')}%</b></p>
                 <i><b style={{ width: `${Math.min(achievementRate, 100)}%` }} /></i>
               </div>
               <div className="goal-metrics">
@@ -218,15 +292,19 @@ export function GoalSimulatorPage() {
                 <span><small>예상 운용수익</small><strong>{formatCompactWon(simulation.investment_gain)}</strong></span>
                 <span><small>{Number(simulation.target_gap) > 0 ? '목표 부족액' : '목표 초과액'}</small><strong>{formatCompactWon(Number(simulation.target_gap) > 0 ? simulation.target_gap : simulation.target_surplus)}</strong></span>
               </div>
+              {inflationRate > 0 && (
+                <div className="goal-real-value"><div><span>예상 자산의 현재 구매력</span><strong>{formatCompactWon(simulation.projected_value_in_today_money)}</strong></div><p>연 {inflationRate}% 물가상승률로 {investmentYears}년 뒤 금액을 현재가치로 환산했습니다.</p></div>
+              )}
               <div className="goal-required">
-                <div><span>현재 조건에서 목표를 맞추려면</span><strong>월 {formatCompactWon(simulation.required_monthly_contribution)}</strong></div>
-                <p>{!simulation.required_monthly_within_supported_limit ? '필요 월 투자금이 계산기 지원 상한인 1억원을 넘습니다. 목표 금액이나 기간을 조정해보세요.' : Number(simulation.additional_monthly_contribution) > 0 ? `현재보다 월 ${formatCompactWon(simulation.additional_monthly_contribution)} 추가가 필요합니다.` : '현재 월 투자 계획으로 목표 금액 이상을 기대하는 계산입니다.'}</p>
+                <div><span>현재 조건에서 목표를 맞추려면</span><strong>첫해 월 {formatCompactWon(simulation.required_monthly_contribution)}</strong></div>
+                <p>{!simulation.required_monthly_within_supported_limit ? '필요 월 투자금이 계산기 지원 상한인 1억원을 넘습니다. 목표 금액이나 기간을 조정해보세요.' : Number(simulation.additional_monthly_contribution) > 0 ? `첫해 기준 현재보다 월 ${formatCompactWon(simulation.additional_monthly_contribution)} 추가가 필요합니다.` : `첫해 월 투자금에서 매년 ${contributionGrowthRate}% 증액하는 계획으로 목표 이상을 기대하는 계산입니다.`}</p>
               </div>
               <div className="goal-result-actions">
+                <input aria-label="저장할 시나리오 이름" maxLength={40} placeholder="시나리오 이름 (선택)" value={snapshotName} onChange={(event) => setSnapshotName(event.target.value)} />
                 <button onClick={saveCurrentResult}><Icon name="bookmark" size={15} /> 결과 저장</button>
                 <button onClick={copyShareLink}><Icon name="link" size={15} /> 공유 링크 복사</button>
               </div>
-              <small className="goal-share-note">공유 링크에는 현재 자산·목표·납입 조건이 포함됩니다. 신뢰할 수 있는 사람에게만 보내세요.</small>
+              <small className="goal-share-note">공유 링크에는 현재 자산·목표·물가·납입 조건이 포함됩니다. 신뢰할 수 있는 사람에게만 보내세요.</small>
               <p className="disclaimer"><Icon name="info" size={14} /> {simulation.disclaimer}</p>
             </>
           ) : <div className="tax-loading">목표까지 필요한 투자 경로를 계산하고 있습니다…</div>}
@@ -236,11 +314,11 @@ export function GoalSimulatorPage() {
       {simulation && (
         <section className="goal-detail-grid">
           <article className="card goal-milestones">
-            <div className="section-heading"><div><h2>연도별 예상 성장 경로</h2><p>연말 납입을 반영한 결정론적 계산입니다.</p></div><span>{simulation.formula}</span></div>
+            <div className="section-heading"><div><h2>연도별 예상 성장 경로</h2><p>연말 납입과 연 {contributionGrowthRate}% 증액을 반영한 결정론적 계산입니다.</p></div><span>{simulation.formula}</span></div>
             <div className="goal-path-chart">
               {visibleMilestones.map((milestone) => (
                 <div key={milestone.year}>
-                  <span>{milestone.year}년</span>
+                  <span>{milestone.year}년<small>연 {formatCompactWon(milestone.annual_contribution)}</small></span>
                   <i><b style={{ width: `${Math.min(100, Math.max(2, Number(milestone.projected_value) / chartMaximum * 100))}%` }} /></i>
                   <strong>{formatCompactWon(milestone.projected_value)}</strong>
                 </div>
@@ -269,13 +347,60 @@ export function GoalSimulatorPage() {
       )}
 
       <section className="card goal-saved-results">
-        <div className="section-heading"><div><h2>저장한 목표 시나리오</h2><p>이 브라우저에만 보관되며 최대 10개까지 저장합니다.</p></div><span>{snapshots.length}개 저장됨</span></div>
+        <div className="section-heading"><div><h2>저장한 목표 시나리오</h2><p>이 브라우저에만 보관되며 최대 10개까지 저장합니다. 두 개를 선택하면 저장 당시 결과를 나란히 볼 수 있습니다.</p></div><span>{snapshots.length}개 저장됨</span></div>
+        {comparisonSnapshots.length === MAX_GOAL_COMPARISON_SNAPSHOTS && (
+          <div className="goal-comparison">
+            <div className="goal-comparison-heading">
+              <div><span>SCENARIO COMPARISON</span><strong>저장 시나리오 비교</strong></div>
+              <button onClick={() => setComparisonIds([])}>선택 해제</button>
+            </div>
+            <div className="goal-comparison-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>비교 항목</th>
+                    {comparisonSnapshots.map((snapshot) => (
+                      <th key={snapshot.id}>{snapshot.name}<small>{formatSavedAt(snapshot.savedAt)}</small></th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><th>현재 자산</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{formatCompactWon(snapshot.inputs.currentAssetsKrw)}</td>)}</tr>
+                  <tr><th>목표 금액</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{formatCompactWon(snapshot.inputs.targetAmountKrw)}</td>)}</tr>
+                  <tr><th>월 투자금</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{formatCompactWon(snapshot.inputs.monthlyContributionKrw)}</td>)}</tr>
+                  <tr><th>기간 · 예상 수익률</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{snapshot.inputs.investmentYears}년 · 연 {snapshot.inputs.annualReturnRatePct}%</td>)}</tr>
+                  <tr><th>목표 기준</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{snapshot.inputs.targetAmountInTodayMoney ? '현재 구매력' : '만기 명목'}</td>)}</tr>
+                  <tr><th>물가 · 투자금 증액</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>연 {snapshot.inputs.annualInflationRatePct}% · 연 {snapshot.inputs.annualContributionGrowthRatePct}%</td>)}</tr>
+                  <tr><th>만기 적용 목표</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{formatCompactWon(snapshot.summary.effectiveTargetAmount)}</td>)}</tr>
+                  <tr className="result"><th>예상 자산</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{formatCompactWon(snapshot.summary.projectedValue)}</td>)}</tr>
+                  <tr><th>예상 자산 현재가치</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{formatCompactWon(snapshot.summary.projectedValueInTodayMoney)}</td>)}</tr>
+                  <tr className="result"><th>목표 달성률</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{Number(snapshot.summary.achievementRatePct).toLocaleString('ko-KR')}%</td>)}</tr>
+                  <tr><th>필요 월 투자금</th>{comparisonSnapshots.map((snapshot) => <td key={snapshot.id}>{formatCompactWon(snapshot.summary.requiredMonthlyContribution)}</td>)}</tr>
+                </tbody>
+              </table>
+            </div>
+            <p><Icon name="info" size={13} /> 목표 금액과 기간이 다르면 달성률만으로 어느 계획이 더 낫다고 판단할 수 없습니다.</p>
+          </div>
+        )}
         {snapshots.length > 0 ? (
           <div className="goal-snapshot-list">
             {snapshots.map((snapshot) => (
-              <article key={snapshot.id}>
-                <div><span>{formatSavedAt(snapshot.savedAt)}</span><strong>목표 {formatCompactWon(snapshot.inputs.targetAmountKrw)}</strong><small>월 {formatCompactWon(snapshot.inputs.monthlyContributionKrw)} · {snapshot.inputs.investmentYears}년 · 연 {snapshot.inputs.annualReturnRatePct}%</small></div>
+              <article className={comparisonIds.includes(snapshot.id) ? 'selected' : ''} key={snapshot.id}>
+                <div>
+                  <span>{formatSavedAt(snapshot.savedAt)}</span>
+                  {editingSnapshotId === snapshot.id ? (
+                    <form className="goal-snapshot-name-editor" onSubmit={renameSnapshot}>
+                      <input aria-label="시나리오 이름" autoFocus maxLength={40} value={editingSnapshotName} onChange={(event) => setEditingSnapshotName(event.target.value)} />
+                      <button type="submit">저장</button>
+                      <button type="button" onClick={() => setEditingSnapshotId(null)}>취소</button>
+                    </form>
+                  ) : (
+                    <div className="goal-snapshot-name"><strong>{snapshot.name}</strong><button aria-label={`${snapshot.name} 이름 수정`} onClick={() => startRenaming(snapshot)}>이름 수정</button></div>
+                  )}
+                  <small>목표 {formatCompactWon(snapshot.inputs.targetAmountKrw)} · 월 {formatCompactWon(snapshot.inputs.monthlyContributionKrw)} · {snapshot.inputs.investmentYears}년 · 수익 {snapshot.inputs.annualReturnRatePct}% · 물가 {snapshot.inputs.annualInflationRatePct}% · 증액 {snapshot.inputs.annualContributionGrowthRatePct}%</small>
+                </div>
                 <p><span>예상 {formatCompactWon(snapshot.summary.projectedValue)}</span><strong>{snapshot.summary.achievementRatePct}% 달성</strong></p>
+                <button className="compare" aria-pressed={comparisonIds.includes(snapshot.id)} onClick={() => toggleComparison(snapshot.id)}>{comparisonIds.includes(snapshot.id) ? <><Icon name="check" size={13} /> 선택됨</> : '비교'}</button>
                 <button onClick={() => loadSnapshot(snapshot)}>불러오기</button>
                 <button className="delete" aria-label={`${formatSavedAt(snapshot.savedAt)} 목표 시나리오 삭제`} onClick={() => removeSnapshot(snapshot.id)}><Icon name="trash" size={14} /></button>
               </article>
