@@ -3,9 +3,11 @@ import {
   buildGoalShareUrl,
   createGoalSnapshot,
   deleteGoalSnapshot,
+  loadActiveGoalSnapshot,
   loadGoalSnapshots,
   parseGoalShareParams,
   saveGoalSnapshot,
+  setActiveGoalSnapshot,
   toggleGoalComparisonSelection,
   updateGoalSnapshotName,
   type GoalScenarioInputs,
@@ -72,6 +74,33 @@ describe('goalSnapshots', () => {
     expect(loadGoalSnapshots()).toEqual([snapshot]);
     expect(deleteGoalSnapshot(snapshot.id)).toEqual([]);
     expect(loadGoalSnapshots()).toEqual([]);
+  });
+
+  it('keeps one active goal pointer in sync with rename and deletion', () => {
+    const snapshot = createGoalSnapshot(
+      inputs,
+      summary,
+      new Date('2026-08-03T00:00:00Z'),
+      '내 집 마련',
+    );
+    saveGoalSnapshot(snapshot);
+
+    expect(setActiveGoalSnapshot(snapshot.id)?.name).toBe('내 집 마련');
+    expect(loadActiveGoalSnapshot()?.id).toBe(snapshot.id);
+    updateGoalSnapshotName(snapshot.id, '수정한 목표');
+    expect(loadActiveGoalSnapshot()?.name).toBe('수정한 목표');
+
+    deleteGoalSnapshot(snapshot.id);
+    expect(loadActiveGoalSnapshot()).toBeNull();
+    expect(window.localStorage.getItem('moa-active-goal-snapshot-v1')).toBeNull();
+  });
+
+  it('rejects a missing active goal and cleans a stale pointer', () => {
+    expect(() => setActiveGoalSnapshot('goal-missing')).toThrow('목표를 찾지 못했습니다');
+    window.localStorage.setItem('moa-active-goal-snapshot-v1', 'goal-missing');
+
+    expect(loadActiveGoalSnapshot()).toBeNull();
+    expect(window.localStorage.getItem('moa-active-goal-snapshot-v1')).toBeNull();
   });
 
   it('adds a default name to legacy snapshots and persists a sanitized rename', () => {

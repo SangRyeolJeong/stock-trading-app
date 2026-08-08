@@ -12,8 +12,10 @@ import {
   MAX_GOAL_COMPARISON_SNAPSHOTS,
   parseGoalShareParams,
   saveGoalSnapshot,
+  setActiveGoalSnapshot,
   toggleGoalComparisonSelection,
   updateGoalSnapshotName,
+  useActiveGoalSnapshot,
   type GoalScenarioInputs,
   type GoalSnapshot,
 } from '../data/goalSnapshots';
@@ -87,6 +89,7 @@ export function GoalSimulatorPage() {
   const [snapshotName, setSnapshotName] = useState('');
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
   const [editingSnapshotName, setEditingSnapshotName] = useState('');
+  const activeGoal = useActiveGoalSnapshot();
   const simulationQuery = useQuery({
     queryKey: [
       'goal-simulation',
@@ -167,8 +170,13 @@ export function GoalSimulatorPage() {
         projectedValueInTodayMoney: simulation.projected_value_in_today_money,
       }, new Date(), snapshotName);
       setSnapshots(saveGoalSnapshot(snapshot));
+      if (!activeGoal) setActiveGoalSnapshot(snapshot.id);
       setSnapshotName('');
-      showToast(`'${snapshot.name}' 시나리오를 이 브라우저에 저장했습니다.`);
+      showToast(
+        activeGoal
+          ? `'${snapshot.name}' 시나리오를 이 브라우저에 저장했습니다.`
+          : `'${snapshot.name}' 시나리오를 저장하고 진행 중인 목표로 설정했습니다.`,
+      );
     } catch {
       showToast('결과를 저장하지 못했습니다. 브라우저 저장소 설정을 확인해주세요.');
     }
@@ -215,6 +223,21 @@ export function GoalSimulatorPage() {
       return;
     }
     setComparisonIds((current) => toggleGoalComparisonSelection(current, snapshotId));
+  };
+
+  const toggleActiveGoal = (snapshot: GoalSnapshot) => {
+    try {
+      const nextActiveGoal = setActiveGoalSnapshot(
+        activeGoal?.id === snapshot.id ? null : snapshot.id,
+      );
+      showToast(
+        nextActiveGoal
+          ? `'${snapshot.name}'을 진행 중인 목표로 설정했습니다.`
+          : '진행 중인 목표 지정을 해제했습니다.',
+      );
+    } catch {
+      showToast('진행 중인 목표를 변경하지 못했습니다.');
+    }
   };
 
   const startRenaming = (snapshot: GoalSnapshot) => {
@@ -385,7 +408,13 @@ export function GoalSimulatorPage() {
         {snapshots.length > 0 ? (
           <div className="goal-snapshot-list">
             {snapshots.map((snapshot) => (
-              <article className={comparisonIds.includes(snapshot.id) ? 'selected' : ''} key={snapshot.id}>
+              <article
+                className={[
+                  comparisonIds.includes(snapshot.id) ? 'selected' : '',
+                  activeGoal?.id === snapshot.id ? 'active-goal' : '',
+                ].filter(Boolean).join(' ')}
+                key={snapshot.id}
+              >
                 <div>
                   <span>{formatSavedAt(snapshot.savedAt)}</span>
                   {editingSnapshotId === snapshot.id ? (
@@ -400,6 +429,7 @@ export function GoalSimulatorPage() {
                   <small>목표 {formatCompactWon(snapshot.inputs.targetAmountKrw)} · 월 {formatCompactWon(snapshot.inputs.monthlyContributionKrw)} · {snapshot.inputs.investmentYears}년 · 수익 {snapshot.inputs.annualReturnRatePct}% · 물가 {snapshot.inputs.annualInflationRatePct}% · 증액 {snapshot.inputs.annualContributionGrowthRatePct}%</small>
                 </div>
                 <p><span>예상 {formatCompactWon(snapshot.summary.projectedValue)}</span><strong>{snapshot.summary.achievementRatePct}% 달성</strong></p>
+                <button className="activate" aria-pressed={activeGoal?.id === snapshot.id} onClick={() => toggleActiveGoal(snapshot)}>{activeGoal?.id === snapshot.id ? <><Icon name="target" size={13} /> 진행 중</> : '진행 목표'}</button>
                 <button className="compare" aria-pressed={comparisonIds.includes(snapshot.id)} onClick={() => toggleComparison(snapshot.id)}>{comparisonIds.includes(snapshot.id) ? <><Icon name="check" size={13} /> 선택됨</> : '비교'}</button>
                 <button onClick={() => loadSnapshot(snapshot)}>불러오기</button>
                 <button className="delete" aria-label={`${formatSavedAt(snapshot.savedAt)} 목표 시나리오 삭제`} onClick={() => removeSnapshot(snapshot.id)}><Icon name="trash" size={14} /></button>

@@ -1,6 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
+import { ActiveGoalCard } from '../components/ActiveGoalCard';
 import { PageContainer } from '../components/layout/PageContainer';
 import { useMarketFavorites } from '../data/marketFavorites';
 import { useUserPreferences } from '../data/userPreferences';
@@ -222,6 +223,8 @@ export function HomePage() {
             </div>
           </div>
         </article>
+
+        <ActiveGoalCard />
 
         <article className="card tax-score-card">
           <div className="card-heading">

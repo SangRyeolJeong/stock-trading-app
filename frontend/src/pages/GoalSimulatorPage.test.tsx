@@ -159,6 +159,32 @@ describe('GoalSimulatorPage saved scenario comparison', () => {
     expect(screen.getByRole('button', { name: '선택됨' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('marks a saved scenario as the active goal and clears it when deleted', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const savedScenario = screen.getByRole(
+      'button',
+      { name: '기본 목표 이름 수정' },
+    ).closest('article');
+    expect(savedScenario).not.toBeNull();
+    const activateButton = within(savedScenario as HTMLElement).getByRole(
+      'button',
+      { name: '진행 목표' },
+    );
+    await user.click(activateButton);
+
+    expect(within(savedScenario as HTMLElement).getByRole('button', { name: '진행 중' }))
+      .toHaveAttribute('aria-pressed', 'true');
+    expect(window.localStorage.getItem('moa-active-goal-snapshot-v1')).toContain('goal-');
+
+    await user.click(within(savedScenario as HTMLElement).getByRole(
+      'button',
+      { name: /목표 시나리오 삭제/ },
+    ));
+    expect(window.localStorage.getItem('moa-active-goal-snapshot-v1')).toBeNull();
+  });
+
   it('restores every planning assumption from a saved scenario', async () => {
     const user = userEvent.setup();
     renderPage();

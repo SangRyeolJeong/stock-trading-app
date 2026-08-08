@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 export interface GoalScenarioInputs {
   currentAssetsKrw: number;
   targetAmountKrw: number;
@@ -26,9 +28,29 @@ export interface GoalSnapshot {
 }
 
 const STORAGE_KEY = 'moa-goal-snapshots-v1';
+const ACTIVE_GOAL_STORAGE_KEY = 'moa-active-goal-snapshot-v1';
 const MAX_SNAPSHOTS = 10;
 export const MAX_GOAL_COMPARISON_SNAPSHOTS = 2;
 const MAX_SNAPSHOT_NAME_LENGTH = 40;
+const goalStoreListeners = new Set<() => void>();
+let goalStoreRevision = 0;
+
+function emitGoalStoreChange() {
+  goalStoreRevision += 1;
+  goalStoreListeners.forEach((listener) => listener());
+}
+
+function subscribeToGoalStore(listener: () => void) {
+  goalStoreListeners.add(listener);
+  return () => goalStoreListeners.delete(listener);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (![STORAGE_KEY, ACTIVE_GOAL_STORAGE_KEY].includes(event.key ?? '')) return;
+    emitGoalStoreChange();
+  });
+}
 
 function normalizeSnapshotName(value: unknown) {
   if (typeof value !== 'string') return '';
@@ -207,12 +229,21 @@ export function saveGoalSnapshot(snapshot: GoalSnapshot): GoalSnapshot[] {
     ...loadGoalSnapshots().filter((item) => item.id !== sanitized.id),
   ].slice(0, MAX_SNAPSHOTS);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  const activeGoalId = window.localStorage.getItem(ACTIVE_GOAL_STORAGE_KEY);
+  if (activeGoalId && !next.some((item) => item.id === activeGoalId)) {
+    window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+  }
+  emitGoalStoreChange();
   return next;
 }
 
 export function deleteGoalSnapshot(snapshotId: string): GoalSnapshot[] {
   const next = loadGoalSnapshots().filter((item) => item.id !== snapshotId);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  if (window.localStorage.getItem(ACTIVE_GOAL_STORAGE_KEY) === snapshotId) {
+    window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+  }
+  emitGoalStoreChange();
   return next;
 }
 
@@ -227,7 +258,38 @@ export function updateGoalSnapshotName(snapshotId: string, name: string): GoalSn
     snapshot.id === snapshotId ? { ...snapshot, name: sanitizedName } : snapshot
   ));
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  emitGoalStoreChange();
   return next;
+}
+
+export function loadActiveGoalSnapshot(): GoalSnapshot | null {
+  const activeGoalId = window.localStorage.getItem(ACTIVE_GOAL_STORAGE_KEY);
+  if (!activeGoalId) return null;
+  const snapshot = loadGoalSnapshots().find((item) => item.id === activeGoalId) ?? null;
+  if (!snapshot) window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+  return snapshot;
+}
+
+export function setActiveGoalSnapshot(snapshotId: string | null): GoalSnapshot | null {
+  if (snapshotId === null) {
+    window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+    emitGoalStoreChange();
+    return null;
+  }
+  const snapshot = loadGoalSnapshots().find((item) => item.id === snapshotId);
+  if (!snapshot) throw new Error('진행 중으로 설정할 목표를 찾지 못했습니다.');
+  window.localStorage.setItem(ACTIVE_GOAL_STORAGE_KEY, snapshot.id);
+  emitGoalStoreChange();
+  return snapshot;
+}
+
+export function useActiveGoalSnapshot(): GoalSnapshot | null {
+  useSyncExternalStore(
+    subscribeToGoalStore,
+    () => goalStoreRevision,
+    () => 0,
+  );
+  return loadActiveGoalSnapshot();
 }
 
 export function toggleGoalComparisonSelection(

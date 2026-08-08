@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
+import { useActiveGoalSnapshot } from '../data/goalSnapshots';
 import { updateUserPreferences, useUserPreferences } from '../data/userPreferences';
 import { strategyApi } from '../services/strategyApi';
 import type { StrategyRequest } from '../types/api';
@@ -31,7 +33,21 @@ const formatWon = (value: number) => `${new Intl.NumberFormat('ko-KR').format(va
 export function StrategyPage() {
   const navigate = useNavigate();
   const preferences = useUserPreferences();
-  const goal = preferences.strategyGoal;
+  const activeGoal = useActiveGoalSnapshot();
+  const [useActiveGoalPlan, setUseActiveGoalPlan] = useState(true);
+  const activeGoalCanFundStrategy = Boolean(
+    activeGoal && activeGoal.inputs.monthlyContributionKrw >= 10_000,
+  );
+  const goalPlanApplied = Boolean(
+    activeGoal && activeGoalCanFundStrategy && useActiveGoalPlan,
+  );
+  const goal = goalPlanApplied ? 'lump_sum' : preferences.strategyGoal;
+  const investmentYears = goalPlanApplied
+    ? activeGoal?.inputs.investmentYears ?? preferences.investmentYears
+    : preferences.investmentYears;
+  const monthlyInvestmentKrw = goalPlanApplied
+    ? activeGoal?.inputs.monthlyContributionKrw ?? preferences.monthlyInvestmentKrw
+    : preferences.monthlyInvestmentKrw;
   const risk = preferences.riskProfile;
   const liquidityPreference = preferences.liquidityPreference;
   const feeSensitivity = preferences.feeSensitivity;
@@ -40,8 +56,8 @@ export function StrategyPage() {
   const selectedRisk = riskOptions.find((option) => option.value === risk) ?? riskOptions[2];
   const request: StrategyRequest = {
     goal,
-    horizon_years: preferences.investmentYears,
-    monthly_amount_krw: preferences.monthlyInvestmentKrw,
+    horizon_years: investmentYears,
+    monthly_amount_krw: monthlyInvestmentKrw,
     risk_profile: risk,
     liquidity_preference: liquidityPreference,
     fee_sensitivity: feeSensitivity,
@@ -86,12 +102,33 @@ export function StrategyPage() {
               <p>선택에 따라 규칙 엔진이 전략을 다시 계산해요.</p>
             </div>
           </div>
+          {activeGoal && (
+            <div className={`strategy-active-goal ${goalPlanApplied ? 'applied' : ''}`}>
+              <span><Icon name="target" size={16} /></span>
+              <div>
+                <small>진행 중인 목표</small>
+                <strong>{activeGoal.name}</strong>
+                <p>
+                  {activeGoal.inputs.investmentYears}년 · 첫해 월 {formatWon(activeGoal.inputs.monthlyContributionKrw)}
+                  {!activeGoalCanFundStrategy && ' · 월 1만원 이상 필요'}
+                </p>
+              </div>
+              {activeGoalCanFundStrategy ? (
+                <button onClick={() => setUseActiveGoalPlan((current) => !current)}>
+                  {goalPlanApplied ? '내 기본 설정 사용' : '목표 조건 적용'}
+                </button>
+              ) : (
+                <button onClick={() => navigate('/goal-simulator')}>목표 수정</button>
+              )}
+            </div>
+          )}
           <label>목표</label>
           <div className="choice-stack">
             {goalOptions.map((option) => (
               <button
                 key={option.value}
                 className={goal === option.value ? 'active' : ''}
+                disabled={goalPlanApplied}
                 onClick={() => updateUserPreferences({ strategyGoal: option.value })}
               >
                 <span>
@@ -116,20 +153,21 @@ export function StrategyPage() {
           </div>
           <label>예상 투자 기간</label>
           <div className="slider-label">
-            <strong>{preferences.investmentYears}년</strong>
-            <span>{preferences.investmentYears >= 10 ? '장기투자' : '중기투자'}</span>
+            <strong>{investmentYears}년</strong>
+            <span>{investmentYears >= 10 ? '장기투자' : '중기투자'}</span>
           </div>
           <input
             className="range-input"
             type="range"
-            min="3"
-            max="40"
-            value={preferences.investmentYears}
+            min={goalPlanApplied ? 1 : 3}
+            max={goalPlanApplied ? 50 : 40}
+            value={investmentYears}
+            disabled={goalPlanApplied}
             onChange={(event) => updateUserPreferences({
               investmentYears: Number(event.target.value),
             })}
           />
-          <div className="range-ends"><span>3년</span><span>40년</span></div>
+          <div className="range-ends"><span>{goalPlanApplied ? '목표 조건' : '3년'}</span><span>{goalPlanApplied ? '계산기에서 변경' : '40년'}</span></div>
           <label>월 투자금</label>
           <div className="money-input">
             <span>₩</span>
@@ -137,7 +175,8 @@ export function StrategyPage() {
               type="number"
               min="10000"
               step="10000"
-              value={preferences.monthlyInvestmentKrw}
+              value={monthlyInvestmentKrw}
+              disabled={goalPlanApplied}
               onChange={(event) => updateUserPreferences({
                 monthlyInvestmentKrw: Number(event.target.value),
               })}
@@ -188,7 +227,7 @@ export function StrategyPage() {
               <span className="ai-badge">
                 <Icon name="sparkles" size={15} /> 구조화된 규칙 기반 추천
               </span>
-              <h2>{selectedGoal.label} · {preferences.investmentYears}년 · {selectedRisk.label}</h2>
+              <h2>{selectedGoal.label} · {investmentYears}년 · {selectedRisk.label}</h2>
             </div>
             {recommendation && (
               <span className="fit-score">
@@ -210,6 +249,18 @@ export function StrategyPage() {
 
           {recommendation && (
             <>
+              {goalPlanApplied && activeGoal && (
+                <div className="strategy-goal-context">
+                  <div>
+                    <span><Icon name="target" size={15} /> 목표 계산기 조건 반영</span>
+                    <strong>{activeGoal.name}</strong>
+                  </div>
+                  <p>
+                    목표 {formatWon(Number(activeGoal.summary.effectiveTargetAmount))}
+                    <span>예상 달성률 {activeGoal.summary.achievementRatePct}%</span>
+                  </p>
+                </div>
+              )}
               <div className="strategy-name">
                 <span className="strategy-icon">M</span>
                 <div>
