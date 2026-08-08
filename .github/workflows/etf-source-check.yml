@@ -30,5 +30,22 @@ jobs:
       - name: Install runtime dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Compare official ETF snapshots
-        run: python -m app.cli.check_etf_sources --check
+      - name: Collect official ETF snapshots
+        run: >-
+          python -m app.cli.check_etf_sources --update
+          --output "${RUNNER_TEMP}/etf_official_snapshots.json"
+
+      - name: Upload reviewable snapshot candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: etf-official-snapshots-${{ github.run_id }}
+          path: ${{ runner.temp }}/etf_official_snapshots.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Require the repository snapshot to be current
+        run: |
+          if ! cmp -s app/data/etf_official_snapshots.json "${RUNNER_TEMP}/etf_official_snapshots.json"; then
+            echo "Official ETF data changed. Review the uploaded candidate artifact."
+            exit 1
+          fi

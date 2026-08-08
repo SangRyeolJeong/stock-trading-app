@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "snapshots": {
+    "133690": {
+      "facts_as_of": "2026-07-31",
+      "holdings_as_of": "2026-07-31",
+      "holdings_count": 104,
+      "symbol": "133690",
+      "top_holdings": [
+        {
+          "name": "Apple",
+          "symbol": "AAPL",
+          "weight_pct": "8.16"
+        },
+        {
+          "name": "NVIDIA",
+          "symbol": "NVDA",
+          "weight_pct": "7.86"
+        },
+        {
+          "name": "Microsoft",
+          "symbol": "MSFT",
+          "weight_pct": "5.58"
+        },
+        {
+          "name": "Micron Technology",
+          "symbol": "MU",
+          "weight_pct": "4.53"
+        },
+        {
+          "name": "Amazon",
+          "symbol": "AMZN",
+          "weight_pct": "4.22"
+        },
+        {
+          "name": "Advanced Micro Devices",
+          "symbol": "AMD",
+          "weight_pct": "3.64"
+        },
+        {
+          "name": "Alphabet A",
+          "symbol": "GOOGL",
+          "weight_pct": "3.24"
+        },
+        {
+          "name": "Broadcom",
+          "symbol": "AVGO",
+          "weight_pct": "3.06"
+        },
+        {
+          "name": "Alphabet C",
+          "symbol": "GOOG",
+          "weight_pct": "3.03"
+        },
+        {
+          "name": "Meta Platforms A",
+          "symbol": "META",
+          "weight_pct": "2.66"
+        }
+      ]
+    },
+    "360750": {
+      "facts_as_of": "2026-07-31",
+      "holdings_as_of": "2026-07-31",
+      "holdings_count": 504,
+      "symbol": "360750",
+      "top_holdings": [
+        {
+          "name": "Apple",
+          "symbol": "AAPL",
+          "weight_pct": "7.65"
+        },
+        {
+          "name": "NVIDIA",
+          "symbol": "NVDA",
+          "weight_pct": "7.38"
+        },
+        {
+          "name": "Microsoft",
+          "symbol": "MSFT",
+          "weight_pct": "5.24"
+        },
+        {
+          "name": "Amazon",
+          "symbol": "AMZN",
+          "weight_pct": "3.60"
+        },
+        {
+          "name": "Alphabet A",
+          "symbol": "GOOGL",
+          "weight_pct": "3.06"
+        },
+        {
+          "name": "Broadcom",
+          "symbol": "AVGO",
+          "weight_pct": "2.87"
+        },
+        {
+          "name": "Alphabet C",
+          "symbol": "GOOG",
+          "weight_pct": "2.46"
+        },
+        {
+          "name": "Meta Platforms A",
+          "symbol": "META",
+          "weight_pct": "1.85"
+        },
+        {
+          "name": "Micron Technology",
+          "symbol": "MU",
+          "weight_pct": "1.54"
+        },
+        {
+          "name": "JPMorgan Chase",
+          "symbol": "JPM",
+          "weight_pct": "1.47"
+        }
+      ]
+    },
+    "379800": {
+      "facts_as_of": "2026-07-31",
+      "holdings_as_of": "2026-07-03",
+      "holdings_count": 506,
+      "symbol": "379800",
+      "top_holdings": [
+        {
+          "name": "NVIDIA",
+          "symbol": "NVDA",
+          "weight_pct": "7.34"
+        },
+        {
+          "name": "Apple",
+          "symbol": "AAPL",
+          "weight_pct": "7.05"
+        },
+        {
+          "name": "Microsoft",
+          "symbol": "MSFT",
+          "weight_pct": "4.51"
+        },
+        {
+          "name": "Amazon",
+          "symbol": "AMZN",
+          "weight_pct": "3.69"
+        },
+        {
+          "name": "Alphabet A",
+          "symbol": "GOOGL",
+          "weight_pct": "3.28"
+        },
+        {
+          "name": "Broadcom",
+          "symbol": "AVGO",
+          "weight_pct": "2.65"
+        },
+        {
+          "name": "Alphabet C",
+          "symbol": "GOOG",
+          "weight_pct": "2.62"
+        },
+        {
+          "name": "Meta Platforms A",
+          "symbol": "META",
+          "weight_pct": "2.10"
+        },
+        {
+          "name": "Tesla",
+          "symbol": "TSLA",
+          "weight_pct": "1.76"
+        }
+      ]
+    },
+    "379810": {
+      "facts_as_of": "2026-07-31",
+      "holdings_as_of": "2026-07-08",
+      "holdings_count": 105,
+      "symbol": "379810",
+      "top_holdings": [
+        {
+          "name": "NVIDIA",
+          "symbol": "NVDA",
+          "weight_pct": "7.66"
+        },
+        {
+          "name": "Apple",
+          "symbol": "AAPL",
+          "weight_pct": "7.33"
+        },
+        {
+          "name": "Micron Technology",
+          "symbol": "MU",
+          "weight_pct": "4.70"
+        },
+        {
+          "name": "Microsoft",
+          "symbol": "MSFT",
+          "weight_pct": "4.64"
+        },
+        {
+          "name": "Amazon",
+          "symbol": "AMZN",
+          "weight_pct": "4.25"
+        },
+        {
+          "name": "Advanced Micro Devices",
+          "symbol": "AMD",
+          "weight_pct": "3.73"
+        },
+        {
+          "name": "Alphabet A",
+          "symbol": "GOOGL",
+          "weight_pct": "3.44"
+        },
+        {
+          "name": "Tesla",
+          "symbol": "TSLA",
+          "weight_pct": "3.24"
+        },
+        {
+          "name": "Alphabet C",
+          "symbol": "GOOG",
+          "weight_pct": "3.19"
+        },
+        {
+          "name": "Meta Platforms A",
+          "symbol": "META",
+          "weight_pct": "2.93"
+        }
+      ]
+    }
+  }
+}

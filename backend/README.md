@@ -195,7 +195,7 @@ DGRO와 0~3개월 미국 국채 SGOV의 결정론적 데모 시세를 제공합�
 기본 종목 검색, 차트·호가·기업 개요와 USD 모의주문을 지원합니다. 표시 가격과
 등락은 실제 주문용 실시간 값이 아니라 개발·교육용 Mock 값입니다.
 
-ETF 비교는 KIS 시세와 분리된 `ETF-COMPARE-2026.08` 결정론적 데이터셋을
+ETF 비교는 KIS 시세와 분리된 `ETF-COMPARE-2026.08.1` 결정론적 데이터셋을
 사용합니다. 미국상장 QQQM·QQQ·SPY·VOO와 한국상장 KODEX
 미국S&P500(379800)·미국나스닥100(379810), TIGER 미국S&P500(360750)·
 미국나스닥100(133690)의 운용사 공식 상품·구성종목 자료 URL, 기준일,
@@ -214,21 +214,24 @@ ETF 비교는 KIS 시세와 분리된 `ETF-COMPARE-2026.08` 결정론적 데이�
 190일이며 기존 단일 400일 한도보다 짧습니다.
 
 KODEX·TIGER는 운용사 화면이 사용하는 공식 JSON·구성종목 API를 주 1회
-자동 점검합니다. 로컬에서도 다음 명령으로 저장소 스냅샷과 공식 자료를
-비교할 수 있습니다.
+수집합니다. 동적 기준일·구성종목 수·상위 10종목은 검증된
+`app/data/etf_official_snapshots.json`에서 서비스가 읽습니다. 로컬에서도 다음
+명령으로 저장소 스냅샷과 공식 자료를 비교하거나 후보 파일을 만들 수 있습니다.
 
 ```bash
 cd backend
 python -m app.cli.check_etf_sources
 python -m app.cli.check_etf_sources --check
+python -m app.cli.check_etf_sources --update --output /tmp/etf-official-candidate.json
 ```
 
 첫 명령은 상태와 상위 10종목을 출력합니다. `--check`는 새 자료, 미래 기준일,
-조회 오류가 있으면 실패 코드로 끝나므로 GitHub Actions 알림에 사용합니다.
-도구는 금융 수치를 자동으로 덮어쓰지 않습니다. 담당자가 공식 기준일과 수치를
-검토한 뒤 `app/services/etf.py`를 갱신해야 합니다. Invesco·Vanguard·State
-Street는 현재 공식 페이지 형식과 접근 정책이 서로 달라 수동 검토 대상으로
-남겨 둡니다.
+과거로 회귀한 기준일 또는 조회 오류가 있으면 실패합니다. `--update`는 선택한
+모든 소스가 정상일 때만 전체 JSON을 같은 디렉터리의 임시 파일에서 원자적으로
+교체합니다. 일부 조회가 실패하면 기존 파일을 유지합니다. 주간 GitHub Actions는
+후보 JSON을 14일간 artifact로 보관하고 저장소 데이터와 다르면 검토를 요청합니다.
+상품명·총보수 같은 정적 메타데이터와 Invesco·Vanguard·State Street 자료는
+페이지 형식과 접근 정책이 서로 달라 수동 검토 대상으로 남겨 둡니다.
 
 ## 절세 계산 API
 

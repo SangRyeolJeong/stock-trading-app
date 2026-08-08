@@ -85,7 +85,7 @@ def test_etf_catalog_exposes_versioned_official_snapshots() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["data_version"] == "ETF-COMPARE-2026.08"
+    assert payload["data_version"] == "ETF-COMPARE-2026.08.1"
     assert {item["symbol"] for item in payload["items"]} == {
         "QQQM",
         "QQQ",

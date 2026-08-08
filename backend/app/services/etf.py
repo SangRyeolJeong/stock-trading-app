@@ -9,8 +9,9 @@ from app.schemas.market import (
     EtfHolding,
     EtfProfile,
 )
+from app.services.etf_snapshot_store import load_official_snapshots
 
-DATA_VERSION = "ETF-COMPARE-2026.08"
+DATA_VERSION = "ETF-COMPARE-2026.08.1"
 COMPARISON_PRINCIPAL_KRW = Decimal("10000000")
 SNAPSHOT_MAX_AGE_DAYS = {
     "QQQM": 190,
@@ -97,6 +98,41 @@ def _profile(
         top_holdings=top_holdings,
         source_url=source_url,
         holdings_source_url=holdings_source_url,
+    )
+
+
+OFFICIAL_DOMESTIC_SNAPSHOTS = load_official_snapshots()
+
+
+def _domestic_profile(
+    *,
+    symbol: str,
+    name: str,
+    issuer: str,
+    underlying_index: str,
+    expense_ratio_pct: str,
+    inception_date: date,
+    source_url: str,
+) -> EtfProfile:
+    snapshot = OFFICIAL_DOMESTIC_SNAPSHOTS[symbol]
+    return _profile(
+        symbol=symbol,
+        name=name,
+        issuer=issuer,
+        listing_country="KR",
+        trading_currency="KRW",
+        underlying_index=underlying_index,
+        expense_ratio_pct=expense_ratio_pct,
+        holdings_count=snapshot.holdings_count,
+        inception_date=inception_date,
+        facts_as_of=snapshot.facts_as_of,
+        holdings_as_of=snapshot.holdings_as_of,
+        top_holdings=[
+            _holding(holding.symbol, holding.name, str(holding.weight_pct))
+            for holding in snapshot.top_holdings
+        ],
+        source_url=source_url,
+        holdings_source_url=source_url,
     )
 
 
@@ -209,112 +245,41 @@ ETF_PROFILES = {
         source_url=VOO_URL,
         holdings_source_url=VOO_URL,
     ),
-    "379800": _profile(
+    "379800": _domestic_profile(
         symbol="379800",
         name="KODEX 미국S&P500",
         issuer="삼성자산운용",
-        listing_country="KR",
-        trading_currency="KRW",
         underlying_index="S&P 500 Index",
         expense_ratio_pct="0.0062",
-        holdings_count=506,
         inception_date=date(2021, 4, 9),
-        facts_as_of=date(2026, 7, 31),
-        holdings_as_of=date(2026, 7, 3),
-        top_holdings=[
-            _holding("NVDA", "NVIDIA", "7.34"),
-            _holding("AAPL", "Apple", "7.05"),
-            _holding("MSFT", "Microsoft", "4.51"),
-            _holding("AMZN", "Amazon", "3.69"),
-            _holding("GOOGL", "Alphabet A", "3.28"),
-            _holding("AVGO", "Broadcom", "2.65"),
-            _holding("GOOG", "Alphabet C", "2.62"),
-            _holding("META", "Meta Platforms A", "2.10"),
-            _holding("TSLA", "Tesla", "1.76"),
-        ],
         source_url=KODEX_SP500_URL,
-        holdings_source_url=KODEX_SP500_URL,
     ),
-    "379810": _profile(
+    "379810": _domestic_profile(
         symbol="379810",
         name="KODEX 미국나스닥100",
         issuer="삼성자산운용",
-        listing_country="KR",
-        trading_currency="KRW",
         underlying_index="Nasdaq-100 Index",
         expense_ratio_pct="0.0062",
-        holdings_count=105,
         inception_date=date(2021, 4, 9),
-        facts_as_of=date(2026, 7, 31),
-        holdings_as_of=date(2026, 7, 8),
-        top_holdings=[
-            _holding("NVDA", "NVIDIA", "7.66"),
-            _holding("AAPL", "Apple", "7.33"),
-            _holding("MU", "Micron Technology", "4.70"),
-            _holding("MSFT", "Microsoft", "4.64"),
-            _holding("AMZN", "Amazon", "4.25"),
-            _holding("AMD", "Advanced Micro Devices", "3.73"),
-            _holding("GOOGL", "Alphabet A", "3.44"),
-            _holding("TSLA", "Tesla", "3.24"),
-            _holding("GOOG", "Alphabet C", "3.19"),
-            _holding("META", "Meta Platforms A", "2.93"),
-        ],
         source_url=KODEX_NASDAQ100_URL,
-        holdings_source_url=KODEX_NASDAQ100_URL,
     ),
-    "360750": _profile(
+    "360750": _domestic_profile(
         symbol="360750",
         name="TIGER 미국S&P500",
         issuer="미래에셋자산운용",
-        listing_country="KR",
-        trading_currency="KRW",
         underlying_index="S&P 500 Index",
         expense_ratio_pct="0.0068",
-        holdings_count=504,
         inception_date=date(2020, 8, 6),
-        facts_as_of=date(2026, 7, 31),
-        holdings_as_of=date(2026, 7, 31),
-        top_holdings=[
-            _holding("AAPL", "Apple", "7.65"),
-            _holding("NVDA", "NVIDIA", "7.38"),
-            _holding("MSFT", "Microsoft", "5.24"),
-            _holding("AMZN", "Amazon", "3.60"),
-            _holding("GOOGL", "Alphabet A", "3.06"),
-            _holding("AVGO", "Broadcom", "2.87"),
-            _holding("GOOG", "Alphabet C", "2.46"),
-            _holding("META", "Meta Platforms A", "1.85"),
-            _holding("MU", "Micron Technology", "1.54"),
-            _holding("JPM", "JPMorgan Chase", "1.47"),
-        ],
         source_url=TIGER_SP500_URL,
-        holdings_source_url=TIGER_SP500_URL,
     ),
-    "133690": _profile(
+    "133690": _domestic_profile(
         symbol="133690",
         name="TIGER 미국나스닥100",
         issuer="미래에셋자산운용",
-        listing_country="KR",
-        trading_currency="KRW",
         underlying_index="Nasdaq-100 Index",
         expense_ratio_pct="0.0068",
-        holdings_count=104,
         inception_date=date(2010, 10, 15),
-        facts_as_of=date(2026, 7, 31),
-        holdings_as_of=date(2026, 7, 31),
-        top_holdings=[
-            _holding("AAPL", "Apple", "8.16"),
-            _holding("NVDA", "NVIDIA", "7.86"),
-            _holding("MSFT", "Microsoft", "5.58"),
-            _holding("MU", "Micron Technology", "4.53"),
-            _holding("AMZN", "Amazon", "4.22"),
-            _holding("AMD", "Advanced Micro Devices", "3.64"),
-            _holding("GOOGL", "Alphabet A", "3.24"),
-            _holding("AVGO", "Broadcom", "3.06"),
-            _holding("GOOG", "Alphabet C", "3.03"),
-            _holding("META", "Meta Platforms A", "2.66"),
-        ],
         source_url=TIGER_NASDAQ100_URL,
-        holdings_source_url=TIGER_NASDAQ100_URL,
     ),
 }
 
