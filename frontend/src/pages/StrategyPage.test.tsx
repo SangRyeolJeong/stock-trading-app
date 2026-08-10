@@ -103,8 +103,17 @@ describe('StrategyPage active goal integration', () => {
       horizon_years: 30,
       monthly_amount_krw: 500_000,
     })));
+    expect(window.localStorage.getItem('moa-goal-strategy-mode-v1')).toBe('preferences');
     expect(screen.queryByText('목표 계산기 조건 반영')).not.toBeInTheDocument();
     expect(screen.getByRole('slider')).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: '목표 조건 적용' }));
+    await waitFor(() => expect(recommendMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      goal: 'lump_sum',
+      horizon_years: 25,
+      monthly_amount_krw: 700_000,
+    })));
+    expect(window.localStorage.getItem('moa-goal-strategy-mode-v1')).toBe('active_goal');
   });
 
   it('keeps the base strategy when the active goal has no allocatable monthly amount', async () => {

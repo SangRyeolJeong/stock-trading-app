@@ -1,12 +1,15 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
-import { useActiveGoalSnapshot } from '../data/goalSnapshots';
+import {
+  setGoalStrategyMode,
+  useActiveGoalSnapshot,
+  useGoalStrategyMode,
+} from '../data/goalSnapshots';
+import { resolveStrategyPlan } from '../data/strategyPlan';
 import { updateUserPreferences, useUserPreferences } from '../data/userPreferences';
 import { strategyApi } from '../services/strategyApi';
-import type { StrategyRequest } from '../types/api';
 
 const goalOptions = [
   { label: '장기 은퇴 준비', value: 'retirement', icon: 'clock' },
@@ -34,36 +37,20 @@ export function StrategyPage() {
   const navigate = useNavigate();
   const preferences = useUserPreferences();
   const activeGoal = useActiveGoalSnapshot();
-  const [useActiveGoalPlan, setUseActiveGoalPlan] = useState(true);
-  const activeGoalCanFundStrategy = Boolean(
-    activeGoal && activeGoal.inputs.monthlyContributionKrw >= 10_000,
-  );
-  const goalPlanApplied = Boolean(
-    activeGoal && activeGoalCanFundStrategy && useActiveGoalPlan,
-  );
-  const goal = goalPlanApplied ? 'lump_sum' : preferences.strategyGoal;
-  const investmentYears = goalPlanApplied
-    ? activeGoal?.inputs.investmentYears ?? preferences.investmentYears
-    : preferences.investmentYears;
-  const monthlyInvestmentKrw = goalPlanApplied
-    ? activeGoal?.inputs.monthlyContributionKrw ?? preferences.monthlyInvestmentKrw
-    : preferences.monthlyInvestmentKrw;
+  const goalStrategyMode = useGoalStrategyMode();
+  const strategyPlan = resolveStrategyPlan(preferences, activeGoal, goalStrategyMode);
+  const request = strategyPlan.request;
+  const goalPlanApplied = strategyPlan.source === 'active_goal';
+  const activeGoalCanFundStrategy = strategyPlan.activeGoalIssue !== 'monthly_minimum';
+  const goal = request.goal;
+  const investmentYears = request.horizon_years;
+  const monthlyInvestmentKrw = request.monthly_amount_krw;
   const risk = preferences.riskProfile;
   const liquidityPreference = preferences.liquidityPreference;
   const feeSensitivity = preferences.feeSensitivity;
   const incomePreference = preferences.incomePreference;
   const selectedGoal = goalOptions.find((option) => option.value === goal) ?? goalOptions[0];
   const selectedRisk = riskOptions.find((option) => option.value === risk) ?? riskOptions[2];
-  const request: StrategyRequest = {
-    goal,
-    horizon_years: investmentYears,
-    monthly_amount_krw: monthlyInvestmentKrw,
-    risk_profile: risk,
-    liquidity_preference: liquidityPreference,
-    fee_sensitivity: feeSensitivity,
-    income_preference: incomePreference,
-    tax_efficiency_priority: true,
-  };
   const strategyQuery = useQuery({
     queryKey: ['strategy', request],
     queryFn: () => strategyApi.recommend(request),
@@ -114,7 +101,9 @@ export function StrategyPage() {
                 </p>
               </div>
               {activeGoalCanFundStrategy ? (
-                <button onClick={() => setUseActiveGoalPlan((current) => !current)}>
+                <button onClick={() => setGoalStrategyMode(
+                  goalPlanApplied ? 'preferences' : 'active_goal',
+                )}>
                   {goalPlanApplied ? '내 기본 설정 사용' : '목표 조건 적용'}
                 </button>
               ) : (

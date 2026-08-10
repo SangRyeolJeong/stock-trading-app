@@ -6,6 +6,7 @@ import {
   createGoalSnapshot,
   saveGoalSnapshot,
   setActiveGoalSnapshot,
+  setGoalStrategyMode,
 } from '../data/goalSnapshots';
 import { ActiveGoalCard } from './ActiveGoalCard';
 
@@ -53,6 +54,7 @@ describe('ActiveGoalCard', () => {
     }, new Date('2026-08-08T00:00:00Z'), '내 집 마련');
     saveGoalSnapshot(snapshot);
     setActiveGoalSnapshot(snapshot.id);
+    setGoalStrategyMode('preferences');
     renderCard();
 
     expect(screen.getByText('내 집 마련')).toBeInTheDocument();
@@ -60,5 +62,6 @@ describe('ActiveGoalCard', () => {
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '82');
     await user.click(screen.getByRole('button', { name: /이 목표로 전략 보기/ }));
     expect(screen.getByText('전략 이동 완료')).toBeInTheDocument();
+    expect(window.localStorage.getItem('moa-goal-strategy-mode-v1')).toBe('active_goal');
   });
 });

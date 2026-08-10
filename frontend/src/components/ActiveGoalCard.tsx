@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useActiveGoalSnapshot } from '../data/goalSnapshots';
+import { setGoalStrategyMode, useActiveGoalSnapshot } from '../data/goalSnapshots';
 import { Icon } from './common/Icon';
 
 function formatCompactWon(value: string | number) {
@@ -76,7 +76,10 @@ export function ActiveGoalCard() {
           ? ` · 매년 ${activeGoal.inputs.annualContributionGrowthRatePct}% 증액`
           : ' · 정액 투자'}
       </p>
-      <button className="primary-button full" onClick={() => navigate('/strategy')}>
+      <button className="primary-button full" onClick={() => {
+        setGoalStrategyMode('active_goal');
+        navigate('/strategy');
+      }}>
         이 목표로 전략 보기 <Icon name="chevron" size={14} />
       </button>
     </article>

@@ -833,6 +833,14 @@ button, .card, .nav-item { -webkit-tap-highlight-color: transparent; }
 .portfolio-next-actions > button > svg { color: #65728a; }
 .ledger-count.action { display: flex; align-items: center; gap: 3px; }
 .rebalancing-card { padding: 20px; }
+.portfolio-goal-context { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; margin-top: 15px; padding: 11px 12px; border: 1px solid #313a49; border-radius: 10px; background: #151a22; }
+.portfolio-goal-context.applied { border-color: #40588f; background: linear-gradient(135deg, #19233a, #161d2c); }
+.portfolio-goal-context > span { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 8px; color: #849be3; background: #222e49; }
+.portfolio-goal-context > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.portfolio-goal-context small { color: #7287c7; font-size: 7px; }
+.portfolio-goal-context strong { overflow: hidden; color: #b8c3d6; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-goal-context p { margin: 0; color: #68758a; font-size: 7px; }
+.portfolio-goal-context button { display: flex; align-items: center; gap: 3px; padding: 7px 9px; border-radius: 7px; color: #8fa5e7; background: #263657; font-size: 7px; }
 .rebalancing-head, .rebalancing-row { display: grid; grid-template-columns: 1fr 1.5fr .65fr 1fr; align-items: center; gap: 12px; }
 .rebalancing-head { margin-top: 16px; padding: 0 12px 8px; color: #68758a; font-size: 8px; }
 .rebalancing-row { min-height: 53px; border-top: 1px solid #252c38; padding: 8px 12px; }

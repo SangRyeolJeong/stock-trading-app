@@ -5,10 +5,12 @@ import { useToast } from '../app/toast';
 import { TAX_PLANNER_PATH } from '../app/paths';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
+import { useActiveGoalSnapshot, useGoalStrategyMode } from '../data/goalSnapshots';
 import {
   categoryForPosition,
   REBALANCING_PRODUCTS,
 } from '../data/rebalancingProducts';
+import { resolveStrategyPlan } from '../data/strategyPlan';
 import { useUserPreferences } from '../data/userPreferences';
 import { marketApi } from '../services/marketApi';
 import { paperApi } from '../services/paperApi';
@@ -71,6 +73,9 @@ export function PortfolioPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const preferences = useUserPreferences();
+  const activeGoal = useActiveGoalSnapshot();
+  const goalStrategyMode = useGoalStrategyMode();
+  const strategyPlan = resolveStrategyPlan(preferences, activeGoal, goalStrategyMode);
   const portfolioQuery = useQuery({
     queryKey: ['paper-portfolio', 'demo-account'],
     queryFn: paperApi.getPortfolioSummary,
@@ -86,17 +91,8 @@ export function PortfolioPage() {
     staleTime: 60_000,
   });
   const strategyQuery = useQuery({
-    queryKey: ['strategy', 'portfolio-rebalancing', preferences],
-    queryFn: () => strategyApi.recommend({
-      goal: preferences.strategyGoal,
-      horizon_years: preferences.investmentYears,
-      monthly_amount_krw: preferences.monthlyInvestmentKrw,
-      risk_profile: preferences.riskProfile,
-      liquidity_preference: preferences.liquidityPreference,
-      fee_sensitivity: preferences.feeSensitivity,
-      income_preference: preferences.incomePreference,
-      tax_efficiency_priority: true,
-    }),
+    queryKey: ['strategy', 'portfolio-rebalancing', strategyPlan.request],
+    queryFn: () => strategyApi.recommend(strategyPlan.request),
   });
   const portfolio = portfolioQuery.data;
   const positions = portfolio?.positions ?? [];
@@ -158,7 +154,7 @@ export function PortfolioPage() {
           defensive: targetWeights.defensive ?? 0,
           cash: targetWeights.cash ?? 0,
         },
-        contributionKrw: preferences.monthlyInvestmentKrw,
+        contributionKrw: strategyPlan.request.monthly_amount_krw,
       })
     : null;
   const rebalancingLabels = {
@@ -300,6 +296,29 @@ export function PortfolioPage() {
             전략 설정 <Icon name="chevron" size={12} />
           </button>
         </div>
+        {activeGoal && (
+          <div className={`portfolio-goal-context ${strategyPlan.source === 'active_goal' ? 'applied' : ''}`}>
+            <span><Icon name="target" size={16} /></span>
+            <div>
+              <small>
+                {strategyPlan.source === 'active_goal'
+                  ? '진행 목표 조건으로 계산 중'
+                  : strategyPlan.activeGoalIssue === 'monthly_minimum'
+                    ? '진행 목표를 적용하려면 첫해 월 투자금 1만원 이상 필요'
+                    : '내 기본 전략 설정으로 계산 중'}
+              </small>
+              <strong>{activeGoal.name}</strong>
+              <p>
+                {strategyPlan.source === 'active_goal'
+                  ? `${strategyPlan.request.horizon_years}년 · 첫해 월 ${formatMoney(strategyPlan.request.monthly_amount_krw, 'KRW')}`
+                  : `목표 ${formatMoney(activeGoal.summary.effectiveTargetAmount, 'KRW')}`}
+              </p>
+            </div>
+            <button onClick={() => navigate('/strategy')}>
+              적용 설정 <Icon name="chevron" size={12} />
+            </button>
+          </div>
+        )}
         {strategyQuery.isError ? (
           <div className="data-status error">
             <span>목표 비중을 불러오지 못했습니다.</span>

@@ -29,6 +29,7 @@ export interface GoalSnapshot {
 
 const STORAGE_KEY = 'moa-goal-snapshots-v1';
 const ACTIVE_GOAL_STORAGE_KEY = 'moa-active-goal-snapshot-v1';
+const GOAL_STRATEGY_MODE_STORAGE_KEY = 'moa-goal-strategy-mode-v1';
 const MAX_SNAPSHOTS = 10;
 export const MAX_GOAL_COMPARISON_SNAPSHOTS = 2;
 const MAX_SNAPSHOT_NAME_LENGTH = 40;
@@ -47,7 +48,8 @@ function subscribeToGoalStore(listener: () => void) {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
-    if (![STORAGE_KEY, ACTIVE_GOAL_STORAGE_KEY].includes(event.key ?? '')) return;
+    if (![STORAGE_KEY, ACTIVE_GOAL_STORAGE_KEY, GOAL_STRATEGY_MODE_STORAGE_KEY]
+      .includes(event.key ?? '')) return;
     emitGoalStoreChange();
   });
 }
@@ -232,6 +234,7 @@ export function saveGoalSnapshot(snapshot: GoalSnapshot): GoalSnapshot[] {
   const activeGoalId = window.localStorage.getItem(ACTIVE_GOAL_STORAGE_KEY);
   if (activeGoalId && !next.some((item) => item.id === activeGoalId)) {
     window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+    window.localStorage.removeItem(GOAL_STRATEGY_MODE_STORAGE_KEY);
   }
   emitGoalStoreChange();
   return next;
@@ -242,6 +245,7 @@ export function deleteGoalSnapshot(snapshotId: string): GoalSnapshot[] {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   if (window.localStorage.getItem(ACTIVE_GOAL_STORAGE_KEY) === snapshotId) {
     window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+    window.localStorage.removeItem(GOAL_STRATEGY_MODE_STORAGE_KEY);
   }
   emitGoalStoreChange();
   return next;
@@ -266,19 +270,24 @@ export function loadActiveGoalSnapshot(): GoalSnapshot | null {
   const activeGoalId = window.localStorage.getItem(ACTIVE_GOAL_STORAGE_KEY);
   if (!activeGoalId) return null;
   const snapshot = loadGoalSnapshots().find((item) => item.id === activeGoalId) ?? null;
-  if (!snapshot) window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+  if (!snapshot) {
+    window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+    window.localStorage.removeItem(GOAL_STRATEGY_MODE_STORAGE_KEY);
+  }
   return snapshot;
 }
 
 export function setActiveGoalSnapshot(snapshotId: string | null): GoalSnapshot | null {
   if (snapshotId === null) {
     window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+    window.localStorage.removeItem(GOAL_STRATEGY_MODE_STORAGE_KEY);
     emitGoalStoreChange();
     return null;
   }
   const snapshot = loadGoalSnapshots().find((item) => item.id === snapshotId);
   if (!snapshot) throw new Error('진행 중으로 설정할 목표를 찾지 못했습니다.');
   window.localStorage.setItem(ACTIVE_GOAL_STORAGE_KEY, snapshot.id);
+  window.localStorage.setItem(GOAL_STRATEGY_MODE_STORAGE_KEY, 'active_goal');
   emitGoalStoreChange();
   return snapshot;
 }
@@ -290,6 +299,36 @@ export function useActiveGoalSnapshot(): GoalSnapshot | null {
     () => 0,
   );
   return loadActiveGoalSnapshot();
+}
+
+export type GoalStrategyMode = 'active_goal' | 'preferences';
+
+export function loadGoalStrategyMode(): GoalStrategyMode {
+  if (!loadActiveGoalSnapshot()) {
+    window.localStorage.removeItem(GOAL_STRATEGY_MODE_STORAGE_KEY);
+    return 'preferences';
+  }
+  return window.localStorage.getItem(GOAL_STRATEGY_MODE_STORAGE_KEY) === 'preferences'
+    ? 'preferences'
+    : 'active_goal';
+}
+
+export function setGoalStrategyMode(mode: GoalStrategyMode): GoalStrategyMode {
+  if (mode === 'active_goal' && !loadActiveGoalSnapshot()) {
+    throw new Error('전략에 적용할 진행 목표가 없습니다.');
+  }
+  window.localStorage.setItem(GOAL_STRATEGY_MODE_STORAGE_KEY, mode);
+  emitGoalStoreChange();
+  return mode;
+}
+
+export function useGoalStrategyMode(): GoalStrategyMode {
+  useSyncExternalStore(
+    subscribeToGoalStore,
+    () => goalStoreRevision,
+    () => 0,
+  );
+  return loadGoalStrategyMode();
 }
 
 export function toggleGoalComparisonSelection(
