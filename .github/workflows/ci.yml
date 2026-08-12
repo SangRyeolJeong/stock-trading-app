@@ -99,6 +99,11 @@ jobs:
       - name: Apply PostgreSQL migrations
         run: python -m alembic upgrade head
 
+      - name: Run PostgreSQL locking and invariant tests
+        env:
+          MOA_TEST_DATABASE: postgresql
+        run: python -m pytest tests/postgres -vv
+
       - name: Check production deployment preflight
         env:
           APP_ENV: production

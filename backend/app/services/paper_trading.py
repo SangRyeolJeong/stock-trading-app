@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from hashlib import sha256
 from uuid import UUID
@@ -61,6 +62,14 @@ class AccountNotFoundError(PaperTradingError):
 
 class InvalidOrderStateError(PaperTradingError):
     status_code = 409
+
+
+@dataclass(frozen=True)
+class SettlementAmounts:
+    fill_price: Decimal
+    gross_amount: Decimal
+    fee: Decimal
+    current_cash: Decimal
 
 
 def money(value: Decimal) -> Decimal:
@@ -142,6 +151,21 @@ class PaperTradingService:
         if account is None:
             raise AccountNotFoundError("모의 계좌를 생성하지 못했습니다.")
         return account
+
+    async def _lock_user_account(
+        self,
+        session: AsyncSession,
+        user_id: str,
+    ) -> PaperAccount:
+        account = await self.ensure_user_account(session, user_id)
+        locked_account = await session.scalar(
+            select(PaperAccount)
+            .where(PaperAccount.id == account.id, PaperAccount.user_id == user_id)
+            .with_for_update(of=PaperAccount)
+        )
+        if locked_account is None:
+            raise AccountNotFoundError("모의 계좌를 찾을 수 없습니다.")
+        return locked_account
 
     async def _cash_balance(self, session: AsyncSession, account_id: str, currency: str) -> Decimal:
         value = await session.scalar(
@@ -285,8 +309,55 @@ class PaperTradingService:
             exclude_order_id=order.id,
         )
         gross_amount = money(fill_price * order.quantity)
-        fee = money(gross_amount * self.fee_rate)
-        current_cash = await self._cash_balance(session, order.account_id, quote.currency)
+        amounts = SettlementAmounts(
+            fill_price=fill_price,
+            gross_amount=gross_amount,
+            fee=money(gross_amount * self.fee_rate),
+            current_cash=await self._cash_balance(session, order.account_id, quote.currency),
+        )
+        realized_pnl, trade_amount = await self._apply_position_change(
+            session,
+            order,
+            quote,
+            amounts,
+        )
+        execution = await self._record_execution(
+            session,
+            order,
+            amounts,
+            realized_pnl,
+        )
+        balance_after_trade = await self._record_trade_settlement(
+            session,
+            order,
+            quote.currency,
+            amounts.current_cash,
+            trade_amount,
+        )
+        final_balance = await self._record_commission(
+            session,
+            order,
+            quote.currency,
+            balance_after_trade,
+            amounts.fee,
+        )
+        await session.flush()
+        await self._record_portfolio_snapshot(
+            session,
+            order,
+            quote.currency,
+            final_balance,
+        )
+        await session.flush()
+        return execution
+
+    async def _apply_position_change(
+        self,
+        session: AsyncSession,
+        order: PaperOrder,
+        quote: Quote,
+        amounts: SettlementAmounts,
+    ) -> tuple[Decimal, Decimal]:
         position = await session.scalar(
             select(Position)
             .where(
@@ -301,7 +372,7 @@ class PaperTradingService:
         if order.side == "buy":
             new_quantity = held_quantity + order.quantity
             previous_cost = held_quantity * (position.average_cost if position else ZERO)
-            new_average_cost = money((previous_cost + gross_amount) / new_quantity)
+            new_average_cost = money((previous_cost + amounts.gross_amount) / new_quantity)
             if position is None:
                 position = Position(
                     account_id=order.account_id,
@@ -314,66 +385,123 @@ class PaperTradingService:
             else:
                 position.quantity = new_quantity
                 position.average_cost = new_average_cost
-            trade_amount = -gross_amount
+            trade_amount = -amounts.gross_amount
         else:
             assert position is not None
-            realized_pnl = money((fill_price - position.average_cost) * order.quantity - fee)
+            realized_pnl = money(
+                (amounts.fill_price - position.average_cost) * order.quantity - amounts.fee
+            )
             position.quantity = held_quantity - order.quantity
             position.realized_pnl = money(position.realized_pnl + realized_pnl)
-            trade_amount = gross_amount
+            trade_amount = amounts.gross_amount
 
+        return realized_pnl, trade_amount
+
+    async def _record_execution(
+        self,
+        session: AsyncSession,
+        order: PaperOrder,
+        amounts: SettlementAmounts,
+        realized_pnl: Decimal,
+    ) -> PaperExecution:
         execution = PaperExecution(
             order_id=order.id,
             quantity=order.quantity,
-            price=fill_price,
-            gross_amount=gross_amount,
-            fee=fee,
+            price=amounts.fill_price,
+            gross_amount=amounts.gross_amount,
+            fee=amounts.fee,
             realized_pnl=realized_pnl,
         )
         session.add(execution)
         order.status = "filled"
+        return execution
 
+    async def _record_trade_settlement(
+        self,
+        session: AsyncSession,
+        order: PaperOrder,
+        currency: str,
+        current_cash: Decimal,
+        trade_amount: Decimal,
+    ) -> Decimal:
         balance_after_trade = money(current_cash + trade_amount)
         session.add(
             CashLedgerEntry(
                 account_id=order.account_id,
                 order_id=order.id,
-                currency=quote.currency,
+                currency=currency,
                 entry_type="trade_settlement",
                 amount=trade_amount,
                 balance_after=balance_after_trade,
             )
         )
+        return balance_after_trade
+
+    async def _record_commission(
+        self,
+        session: AsyncSession,
+        order: PaperOrder,
+        currency: str,
+        balance_after_trade: Decimal,
+        fee: Decimal,
+    ) -> Decimal:
         final_balance = money(balance_after_trade - fee)
         session.add(
             CashLedgerEntry(
                 account_id=order.account_id,
                 order_id=order.id,
-                currency=quote.currency,
+                currency=currency,
                 entry_type="commission",
                 amount=-fee,
                 balance_after=final_balance,
             )
         )
-        await session.flush()
+        return final_balance
 
+    async def _record_portfolio_snapshot(
+        self,
+        session: AsyncSession,
+        order: PaperOrder,
+        currency: str,
+        final_balance: Decimal,
+    ) -> None:
         positions_value = await session.scalar(
             select(func.coalesce(func.sum(Position.quantity * Position.average_cost), ZERO))
             .join(Security, Security.symbol == Position.security_symbol)
-            .where(Position.account_id == order.account_id, Security.currency == quote.currency)
+            .where(Position.account_id == order.account_id, Security.currency == currency)
         )
         positions_value = money(Decimal(positions_value or ZERO))
         session.add(
             PortfolioSnapshot(
                 account_id=order.account_id,
-                currency=quote.currency,
+                currency=currency,
                 cash_value=final_balance,
                 positions_value=positions_value,
                 total_value=money(final_balance + positions_value),
             )
         )
+
+    async def _create_order(
+        self,
+        session: AsyncSession,
+        account_id: str,
+        request: PaperOrderRequest,
+        quote: Quote,
+        should_fill: bool,
+    ) -> PaperOrder:
+        order = PaperOrder(
+            account_id=account_id,
+            security_symbol=quote.symbol,
+            idempotency_key=request.idempotency_key,
+            side=request.side,
+            order_type=request.order_type,
+            quantity=request.quantity,
+            requested_price=request.limit_price,
+            status="filled" if should_fill else "accepted",
+        )
+        session.add(order)
         await session.flush()
-        return execution
+        return order
 
     async def execute_immediately(
         self,
@@ -383,13 +511,7 @@ class PaperTradingService:
         quote: Quote,
     ) -> PaperOrderSchema:
         async with session.begin():
-            account = await self.ensure_user_account(session, user_id)
-            account = await session.scalar(
-                select(PaperAccount)
-                .where(PaperAccount.id == account.id, PaperAccount.user_id == user_id)
-                .with_for_update()
-            )
-            assert account is not None
+            account = await self._lock_user_account(session, user_id)
 
             existing_row = (
                 await session.execute(
@@ -429,18 +551,13 @@ class PaperTradingService:
                 request.limit_price is not None
                 and self._limit_is_marketable(request.side, request.limit_price, quote.price)
             )
-            order = PaperOrder(
-                account_id=account.id,
-                security_symbol=quote.symbol,
-                idempotency_key=request.idempotency_key,
-                side=request.side,
-                order_type=request.order_type,
-                quantity=request.quantity,
-                requested_price=request.limit_price,
-                status="filled" if should_fill else "accepted",
+            order = await self._create_order(
+                session,
+                account.id,
+                request,
+                quote,
+                should_fill,
             )
-            session.add(order)
-            await session.flush()
             if not should_fill:
                 assert request.limit_price is not None
                 await self._validate_resources(
@@ -481,16 +598,16 @@ class PaperTradingService:
         user_id: str,
         order_id: UUID,
         quote: Quote,
-    ) -> None:
+    ) -> bool:
         async with session.begin():
+            account = await self._lock_user_account(session, user_id)
             order = await session.scalar(
                 select(PaperOrder)
-                .join(PaperAccount, PaperAccount.id == PaperOrder.account_id)
                 .where(
                     PaperOrder.id == order_id,
-                    PaperAccount.user_id == user_id,
+                    PaperOrder.account_id == account.id,
                 )
-                .with_for_update()
+                .with_for_update(of=PaperOrder)
             )
             if (
                 order is None
@@ -498,12 +615,13 @@ class PaperTradingService:
                 or order.requested_price is None
                 or not self._limit_is_marketable(order.side, order.requested_price, quote.price)
             ):
-                return
+                return False
             try:
                 await self._settle_order(session, order, quote)
             except (InsufficientCashError, InsufficientPositionError):
                 order.status = "rejected"
                 await session.flush()
+            return True
 
     async def cancel_order(
         self,
@@ -512,19 +630,22 @@ class PaperTradingService:
         order_id: UUID,
     ) -> PaperOrderSchema:
         async with session.begin():
-            account = await self.ensure_user_account(session, user_id)
+            account = await self._lock_user_account(session, user_id)
+            order = await session.scalar(
+                select(PaperOrder)
+                .where(
+                    PaperOrder.id == order_id,
+                    PaperOrder.account_id == account.id,
+                )
+                .with_for_update(of=PaperOrder)
+            )
+            if order is None:
+                raise AccountNotFoundError("주문을 찾을 수 없습니다.")
             row = (
                 await session.execute(
-                    self._order_query()
-                    .where(
-                        PaperOrder.id == order_id,
-                        PaperOrder.account_id == account.id,
-                    )
-                    .with_for_update()
+                    self._order_query().where(PaperOrder.id == order.id)
                 )
-            ).one_or_none()
-            if row is None:
-                raise AccountNotFoundError("주문을 찾을 수 없습니다.")
+            ).one()
             order, execution, security = row
             if order.status == "cancelled":
                 return self._order_schema(order, execution, security)
