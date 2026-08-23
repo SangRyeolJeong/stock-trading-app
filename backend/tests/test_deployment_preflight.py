@@ -47,4 +47,4 @@ def test_preflight_requires_database_to_match_all_migration_heads() -> None:
 
 
 def test_alembic_configuration_exposes_the_repository_head() -> None:
-    assert load_migration_heads(Path("alembic.ini")) == ("20260729_0003",)
+    assert load_migration_heads(Path("alembic.ini")) == ("20260823_0004",)

@@ -14,6 +14,7 @@ from app.schemas.market import Quote
 from app.schemas.paper import PaperOrder as PaperOrderSchema
 from app.schemas.paper import PaperOrderRequest
 from app.services.paper_trading import (
+    IdempotencyConflictError,
     InsufficientCashError,
     InsufficientPositionError,
     InvalidOrderStateError,
@@ -59,6 +60,13 @@ def order_request(
 
 async def execute(request: PaperOrderRequest, market_quote: Quote) -> PaperOrderSchema:
     async with async_session_factory() as session:
+        existing = await paper_trading_service.get_idempotent_order(
+            session,
+            DEMO_USER_ID,
+            request,
+        )
+        if existing is not None:
+            return existing
         return await paper_trading_service.execute_immediately(
             session,
             DEMO_USER_ID,
@@ -183,6 +191,27 @@ async def test_same_idempotency_key_concurrently_returns_one_order(
             select(func.count()).select_from(CashLedgerEntry).where(CashLedgerEntry.order_id == first.id)
         )
         assert trade_entries == 2
+    await assert_ledger_invariants()
+
+
+@pytest.mark.asyncio
+async def test_same_idempotency_key_with_different_requests_concurrently_conflicts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await ensure_demo_account()
+    synchronize_next_two_account_locks(monkeypatch)
+
+    results = await asyncio.gather(
+        execute(order_request("postgres-idempotency-conflict", quantity="1"), quote()),
+        execute(order_request("postgres-idempotency-conflict", quantity="2"), quote()),
+        return_exceptions=True,
+    )
+
+    assert sum(isinstance(result, PaperOrderSchema) for result in results) == 1
+    assert sum(isinstance(result, IdempotencyConflictError) for result in results) == 1
+    async with async_session_factory() as session:
+        assert await session.scalar(select(func.count()).select_from(PaperOrder)) == 1
+        assert await session.scalar(select(func.count()).select_from(PaperExecution)) == 1
     await assert_ledger_invariants()
 
 

@@ -223,6 +223,36 @@ def test_idempotency_key_does_not_duplicate_order_or_ledger_effects() -> None:
     assert positions[0]["quantity"] == "1.00000000"
 
 
+def test_completed_order_retry_does_not_call_unavailable_market_data(monkeypatch) -> None:
+    payload = base_order()
+    first = client.post("/api/v1/paper/orders", json=payload)
+
+    async def unavailable_quote(symbol: str) -> Quote:
+        raise AssertionError(f"완료 주문 재조회에서 시세를 호출했습니다: {symbol}")
+
+    monkeypatch.setattr(market_data_service, "get_quote", unavailable_quote)
+    retried = client.post("/api/v1/paper/orders", json=payload)
+
+    assert first.status_code == retried.status_code == 201
+    assert retried.json() == first.json()
+
+
+def test_idempotency_conflict_is_returned_before_market_data_call(monkeypatch) -> None:
+    original = base_order()
+    changed = base_order()
+    changed["quantity"] = 2
+    assert client.post("/api/v1/paper/orders", json=original).status_code == 201
+
+    async def unavailable_quote(symbol: str) -> Quote:
+        raise AssertionError(f"멱등성 충돌에서 시세를 호출했습니다: {symbol}")
+
+    monkeypatch.setattr(market_data_service, "get_quote", unavailable_quote)
+    response = client.post("/api/v1/paper/orders", json=changed)
+
+    assert response.status_code == 409
+    assert "다른 주문" in response.json()["detail"]
+
+
 def test_reusing_idempotency_key_for_different_order_is_rejected() -> None:
     first = base_order()
     changed = base_order()

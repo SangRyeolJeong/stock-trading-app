@@ -1,3 +1,4 @@
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
@@ -38,6 +39,7 @@ from app.schemas.paper import (
 MONEY_QUANTUM = Decimal("0.00000001")
 ZERO = Decimal("0")
 DEMO_ACCOUNT_ID = "demo-account"
+ORDER_FINGERPRINT_VERSION = 1
 
 
 class PaperTradingError(RuntimeError):
@@ -74,6 +76,31 @@ class SettlementAmounts:
 
 def money(value: Decimal) -> Decimal:
     return value.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
+
+
+def _canonical_decimal(value: Decimal) -> str:
+    return format(value.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP), "f")
+
+
+def order_request_fingerprint(request: PaperOrderRequest) -> str:
+    payload = json.dumps(
+        {
+            "limit_price": (
+                _canonical_decimal(request.limit_price)
+                if request.limit_price is not None
+                else None
+            ),
+            "order_type": request.order_type,
+            "quantity": _canonical_decimal(request.quantity),
+            "side": request.side,
+            "symbol": request.symbol,
+            "version": ORDER_FINGERPRINT_VERSION,
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return sha256(payload.encode("utf-8")).hexdigest()
 
 
 class PaperTradingService:
@@ -219,6 +246,43 @@ class PaperTradingService:
             realized_pnl=execution.realized_pnl if execution else None,
             created_at=order.created_at,
         )
+
+    async def _find_idempotent_order(
+        self,
+        session: AsyncSession,
+        account_id: str,
+        request: PaperOrderRequest,
+        fingerprint: str,
+    ) -> PaperOrderSchema | None:
+        row = (
+            await session.execute(
+                self._order_query().where(
+                    PaperOrder.account_id == account_id,
+                    PaperOrder.idempotency_key == request.idempotency_key,
+                )
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        order, execution, security = row
+        if order.request_fingerprint != fingerprint:
+            raise IdempotencyConflictError("같은 멱등성 키가 다른 주문에 이미 사용됐습니다.")
+        return self._order_schema(order, execution, security)
+
+    async def get_idempotent_order(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        request: PaperOrderRequest,
+    ) -> PaperOrderSchema | None:
+        fingerprint = order_request_fingerprint(request)
+        async with session.begin():
+            return await self._find_idempotent_order(
+                session,
+                self.account_id_for_user(user_id),
+                request,
+                fingerprint,
+            )
 
     @staticmethod
     def _limit_is_marketable(side: str, limit_price: Decimal, market_price: Decimal) -> bool:
@@ -488,11 +552,13 @@ class PaperTradingService:
         request: PaperOrderRequest,
         quote: Quote,
         should_fill: bool,
+        request_fingerprint: str,
     ) -> PaperOrder:
         order = PaperOrder(
             account_id=account_id,
             security_symbol=quote.symbol,
             idempotency_key=request.idempotency_key,
+            request_fingerprint=request_fingerprint,
             side=request.side,
             order_type=request.order_type,
             quantity=request.quantity,
@@ -510,28 +576,18 @@ class PaperTradingService:
         request: PaperOrderRequest,
         quote: Quote,
     ) -> PaperOrderSchema:
+        fingerprint = order_request_fingerprint(request)
         async with session.begin():
             account = await self._lock_user_account(session, user_id)
 
-            existing_row = (
-                await session.execute(
-                    self._order_query().where(
-                        PaperOrder.account_id == account.id,
-                        PaperOrder.idempotency_key == request.idempotency_key,
-                    )
-                )
-            ).one_or_none()
-            if existing_row is not None:
-                existing, execution, security = existing_row
-                if (
-                    existing.security_symbol != request.symbol
-                    or existing.side != request.side
-                    or existing.order_type != request.order_type
-                    or existing.quantity != request.quantity
-                    or existing.requested_price != request.limit_price
-                ):
-                    raise IdempotencyConflictError("같은 멱등성 키가 다른 주문에 이미 사용됐습니다.")
-                return self._order_schema(existing, execution, security)
+            existing = await self._find_idempotent_order(
+                session,
+                account.id,
+                request,
+                fingerprint,
+            )
+            if existing is not None:
+                return existing
 
             security = await session.get(Security, quote.symbol)
             if security is None:
@@ -557,6 +613,7 @@ class PaperTradingService:
                 request,
                 quote,
                 should_fill,
+                fingerprint,
             )
             if not should_fill:
                 assert request.limit_price is not None

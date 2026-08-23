@@ -122,8 +122,9 @@ DATABASE_URL=postgresql+asyncpg://<user>:<password>@127.0.0.1:5432/<test_db> \
 ```
 
 현재 로컬 WSL 환경에는 PostgreSQL 서버와 Docker가 없어 실제 PostgreSQL 실행은
-CI 검증 대상으로 남는다. 로컬 일반 테스트에서는 5개 PostgreSQL 테스트가
-명시적으로 skip되며, SQLite 테스트 결과를 행 잠금의 증거로 사용하지 않는다.
+CI의 PostgreSQL runtime job에서 검증한다. 로컬 일반 테스트에서는 6개 PostgreSQL
+테스트가 명시적으로 skip되며, SQLite 테스트 결과를 행 잠금의 증거로 사용하지
+않는다.
 
 ## 공식 문서
 

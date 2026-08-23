@@ -57,10 +57,13 @@ async def create_paper_order(
     session: Session,
     user: CurrentUser,
 ) -> PaperOrder:
-    quote = await market_data_service.get_quote(order.symbol)
-    if quote is None:
-        raise HTTPException(status_code=404, detail="시세를 찾을 수 없습니다.")
     try:
+        existing = await paper_trading_service.get_idempotent_order(session, user.id, order)
+        if existing is not None:
+            return existing
+        quote = await market_data_service.get_quote(order.symbol)
+        if quote is None:
+            raise HTTPException(status_code=404, detail="시세를 찾을 수 없습니다.")
         return await paper_trading_service.execute_immediately(session, user.id, order, quote)
     except PaperTradingError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc

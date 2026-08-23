@@ -394,8 +394,8 @@ feat: add transactional outbox for broker orders
 ## 7. 진행 현황
 
 - [x] 1단계: 주문 체결의 원자성과 롤백
-- [ ] 2단계: PostgreSQL 동시 주문과 행 잠금 — 구현 완료, PostgreSQL CI 실행 대기
-- [ ] 3단계: 멱등성과 네트워크 재시도
+- [x] 2단계: PostgreSQL 동시 주문과 행 잠금
+- [x] 3단계: 멱등성과 네트워크 재시도
 - [ ] 4단계: 원장 불변식과 대사
 - [ ] 5단계: 주문 상태 머신과 감사 이력
 - [ ] 6단계: 교착 상태와 트랜잭션 재시도

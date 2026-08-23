@@ -62,6 +62,7 @@ class PaperOrder(Base):
     account_id: Mapped[str] = mapped_column(ForeignKey("paper_accounts.id"), index=True)
     security_symbol: Mapped[str] = mapped_column(ForeignKey("securities.symbol"))
     idempotency_key: Mapped[str] = mapped_column(String(128))
+    request_fingerprint: Mapped[str] = mapped_column(String(64))
     side: Mapped[str] = mapped_column(String(4))
     order_type: Mapped[str] = mapped_column(String(10))
     quantity: Mapped[Decimal] = mapped_column(QUANTITY)
