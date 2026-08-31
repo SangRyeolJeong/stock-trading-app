@@ -23,6 +23,8 @@ def safe_configuration_summary(settings: Settings) -> dict[str, object]:
         "database_driver": settings.database_url.partition("://")[0],
         "cors_origin_count": len(settings.cors_origins),
         "market_provider": settings.market_data_provider,
+        "ai_provider": settings.ai_provider,
+        "ai_model": settings.openai_model if settings.ai_provider == "openai" else None,
     }
 
 

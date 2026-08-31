@@ -764,6 +764,22 @@ button, .card, .nav-item { -webkit-tap-highlight-color: transparent; }
 .why-box strong { color: #aeb8c5; font-size: 9px; }
 .why-box small { color: #647084; font-size: 8px; }
 .why-box code { width: fit-content; color: #6174ae; font-family: inherit; font-size: 7px; }
+.ai-explanation { margin: 16px 0; padding: 14px; border: 1px solid #33466f; border-radius: 11px; background: linear-gradient(145deg, #18233a, #151b28); }
+.ai-explanation-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.ai-explanation-heading > div > span { display: flex; align-items: center; gap: 6px; color: #9eb2f2; font-size: 10px; font-weight: 600; }
+.ai-explanation-heading p { margin: 5px 0 0; color: #6f7c91; font-size: 8px; }
+.ai-explanation-heading button, .ai-explanation-error button { flex: none; padding: 8px 10px; border-radius: 7px; color: #b6c6fa; background: #2a3d70; font-size: 8px; }
+.ai-explanation-heading button:disabled { cursor: wait; opacity: .6; }
+.ai-data-notice { display: block; margin-top: 10px; color: #59667a; font-size: 7px; line-height: 1.5; }
+.ai-explanation-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; padding: 10px; border-radius: 8px; color: #bd8f96; background: #2a1c22; font-size: 8px; }
+.ai-explanation-result { display: grid; gap: 9px; margin-top: 13px; }
+.ai-explanation-result > p:first-child { margin: 0; color: #aeb9ca; font-size: 9px; line-height: 1.65; }
+.ai-explanation-result article { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 8px; background: #111722; }
+.ai-explanation-result article strong { color: #aab8de; font-size: 9px; }
+.ai-explanation-result article span { color: #748197; font-size: 8px; line-height: 1.6; }
+.ai-explanation-result article small { color: #6076b2; font-size: 7px; }
+.ai-explanation-result .ai-caution { display: flex; align-items: flex-start; gap: 6px; margin: 0; color: #a89475; font-size: 8px; line-height: 1.55; }
+.ai-explanation-result > small:last-child { color: #566276; font-size: 7px; line-height: 1.5; }
 .allocation-plan { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 16px 0; }
 .allocation-plan div { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid #28313e; border-radius: 8px; }
 .allocation-plan span { color: #687487; font-size: 8px; }

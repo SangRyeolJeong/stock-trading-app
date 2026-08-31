@@ -11,10 +11,13 @@ import {
 import { resetUserPreferences } from '../data/userPreferences';
 import { StrategyPage } from './StrategyPage';
 
-const recommendMock = vi.hoisted(() => vi.fn());
+const { explainMock, recommendMock } = vi.hoisted(() => ({
+  explainMock: vi.fn(),
+  recommendMock: vi.fn(),
+}));
 
 vi.mock('../services/strategyApi', () => ({
-  strategyApi: { recommend: recommendMock },
+  strategyApi: { explain: explainMock, recommend: recommendMock },
 }));
 
 const recommendation = {
@@ -81,6 +84,7 @@ describe('StrategyPage active goal integration', () => {
     resetUserPreferences();
     recommendMock.mockReset();
     recommendMock.mockResolvedValue(recommendation);
+    explainMock.mockReset();
   });
 
   it('uses the active goal horizon, monthly amount and lump-sum purpose by default', async () => {
@@ -127,5 +131,37 @@ describe('StrategyPage active goal integration', () => {
     })));
     expect(screen.getByRole('button', { name: '목표 수정' })).toBeInTheDocument();
     expect(screen.getByText(/월 1만원 이상 필요/)).toBeInTheDocument();
+  });
+
+  it('generates an AI explanation only after explicit user action', async () => {
+    const user = userEvent.setup();
+    explainMock.mockResolvedValue({
+      engine_version: 'STRATEGY-2026.07',
+      strategy_id: 'lump_sum-growth-long',
+      provider: 'openai',
+      model: 'gpt-5.6',
+      overview: '규칙 결과를 목표에 맞춰 쉽게 설명합니다.',
+      highlights: [{
+        title: '목표 시점 고려',
+        explanation: '목표 시점에 맞춘 방어 원칙을 적용했습니다.',
+        evidence_codes: ['GOAL_LUMP_SUM'],
+      }],
+      caution: '시장 변동으로 원금 손실이 발생할 수 있습니다.',
+      disclaimer: 'AI는 규칙 엔진 결과만 설명합니다.',
+    });
+    renderPage();
+
+    await screen.findByText('목표에 맞춘 전략입니다.');
+    expect(explainMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/OpenAI에 전송됩니다/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'AI 설명 생성' }));
+
+    await waitFor(() => expect(explainMock).toHaveBeenCalledWith(expect.objectContaining({
+      goal: 'retirement',
+      monthly_amount_krw: 500_000,
+    })));
+    expect(await screen.findByText('규칙 결과를 목표에 맞춰 쉽게 설명합니다.')).toBeInTheDocument();
+    expect(screen.getByText('GOAL_LUMP_SUM')).toBeInTheDocument();
   });
 });

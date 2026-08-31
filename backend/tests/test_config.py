@@ -48,6 +48,15 @@ def test_production_accepts_complete_supabase_auth_settings() -> None:
     assert settings.auth_mode == "supabase"
 
 
+def test_openai_provider_requires_api_key() -> None:
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+        Settings(
+            _env_file=None,
+            ai_provider="openai",
+            openai_api_key=None,
+        )
+
+
 def test_production_rejects_non_postgresql_database() -> None:
     with pytest.raises(ValueError, match="postgresql\\+asyncpg"):
         Settings(

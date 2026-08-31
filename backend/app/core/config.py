@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_publishable_key: str | None = None
     market_data_provider: Literal["mock", "kis"] = "mock"
+    ai_provider: Literal["disabled", "openai"] = "disabled"
+    openai_api_key: SecretStr | None = None
+    openai_model: str = "gpt-5.6"
+    ai_request_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
     paper_initial_krw: Decimal = Decimal("10000000")
     paper_initial_usd: Decimal = Decimal("10000")
     paper_fee_rate: Decimal = Decimal("0.001")
@@ -84,6 +88,8 @@ class Settings(BaseSettings):
             raise ValueError(
                 "KIS 시세에는 KIS_APP_KEY와 KIS_APP_SECRET이 필요합니다."
             )
+        if self.ai_provider == "openai" and not self.openai_api_key:
+            raise ValueError("OpenAI AI 설명에는 OPENAI_API_KEY가 필요합니다.")
         if self.app_env == "production":
             self._validate_production_origins()
             self._validate_production_supabase_url()

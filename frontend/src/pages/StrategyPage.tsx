@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/common/Icon';
 import { PageContainer } from '../components/layout/PageContainer';
@@ -56,6 +56,12 @@ export function StrategyPage() {
     queryFn: () => strategyApi.recommend(request),
   });
   const recommendation = strategyQuery.data;
+  const explanationMutation = useMutation({
+    mutationFn: strategyApi.explain,
+  });
+  const explanation = explanationMutation.data?.strategy_id === recommendation?.strategy_id
+    ? explanationMutation.data
+    : undefined;
 
   return (
     <PageContainer className="content-page strategy-page">
@@ -288,6 +294,48 @@ export function StrategyPage() {
                     </p>
                   </div>
                 ))}
+              </div>
+
+              <div className="ai-explanation">
+                <div className="ai-explanation-heading">
+                  <div>
+                    <span><Icon name="sparkles" size={14} /> AI로 쉽게 풀어보기</span>
+                    <p>규칙 엔진 결과는 바꾸지 않고 선택 이유와 주의점을 설명해요.</p>
+                  </div>
+                  <button
+                    disabled={explanationMutation.isPending}
+                    onClick={() => explanationMutation.mutate(request)}
+                  >
+                    {explanationMutation.isPending
+                      ? '설명 생성 중'
+                      : explanation
+                        ? '다시 생성'
+                        : 'AI 설명 생성'}
+                  </button>
+                </div>
+                <small className="ai-data-notice">
+                  버튼을 누르면 선택한 목적·기간·월 투자금과 규칙 엔진 결과가 OpenAI에 전송됩니다.
+                </small>
+                {explanationMutation.isError && (
+                  <div className="ai-explanation-error">
+                    <span>{explanationMutation.error.message}</span>
+                    <button onClick={() => explanationMutation.mutate(request)}>다시 시도</button>
+                  </div>
+                )}
+                {explanation && (
+                  <div className="ai-explanation-result">
+                    <p>{explanation.overview}</p>
+                    {explanation.highlights.map((highlight) => (
+                      <article key={`${highlight.title}-${highlight.evidence_codes.join('-')}`}>
+                        <strong>{highlight.title}</strong>
+                        <span>{highlight.explanation}</span>
+                        <small>{highlight.evidence_codes.join(' · ')}</small>
+                      </article>
+                    ))}
+                    <p className="ai-caution"><Icon name="info" size={13} /> {explanation.caution}</p>
+                    <small>{explanation.model} · {explanation.disclaimer}</small>
+                  </div>
+                )}
               </div>
 
               <div className="strategy-actions">

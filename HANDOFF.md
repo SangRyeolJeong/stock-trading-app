@@ -48,6 +48,23 @@ git log --oneline -5
 
 ## 마지막 검증 결과
 
+2026-08-31 AI 전략 설명과 ETF 최신 자료 갱신 검증:
+
+```text
+backend pytest: 142 passed, 6 PostgreSQL tests skipped
+backend Ruff (app tests): All checks passed
+frontend Vitest: 20 files, 61 passed
+frontend build: passed
+frontend ESLint: passed
+git diff check: passed
+```
+
+전략 규칙 엔진 결과만 OpenAI Responses API에 전달해 구조화된 한국어 설명을
+생성하는 수동 호출 흐름을 추가했다. 기본 설정은 비활성화이며 실제 API 키를
+사용한 모델 품질·비용 검증은 배포 환경에 남아 있다. KODEX·TIGER 4종은
+2026-08-31 공식 API 후보와 일치하고, SPY는 State Street의 2026-08-27 상위
+구성종목 및 2026-08-30 상품 정보로 갱신했다.
+
 2026-08-10 진행 목표 포트폴리오 연결 번들 검증:
 
 ```text
@@ -192,6 +209,7 @@ npm run lint
 - 리밸런싱 제안액 기반 QQQM·DGRO·SGOV 정수 수량 계산과 모의주문 초안 전달
 - `KR-2026.07` 절세 비교 엔진
 - `STRATEGY-2026.07` 구조화 전략 추천 엔진
+- 규칙 엔진 결과와 근거 코드만 사용하는 선택형 OpenAI 전략 설명
 - 공식 근거가 연결된 투자 학습 콘텐츠와 로컬 진도
 - 로컬 사용자 설정과 통합 검색
 
@@ -242,7 +260,9 @@ npm run dev
 
 1. 운영 PostgreSQL과 배포 환경을 구성하고 Supabase 프로젝트에서 실제
    로그인·토큰 검증을 통합 테스트한다.
-2. 계정 삭제 시 설정·모의투자 원장의 삭제 또는 보존 정책을 확정하고
+2. 배포 환경에서 OpenAI API 키를 연결해 모델 설명 품질, 호출 비용과 실패율을
+   확인하고 요청 제한 정책을 확정한다.
+3. 계정 삭제 시 설정·모의투자 원장의 삭제 또는 보존 정책을 확정하고
    사용자 데이터 삭제 흐름을 구현한다.
 
 ## CI

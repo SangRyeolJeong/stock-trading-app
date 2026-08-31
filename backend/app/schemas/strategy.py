@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 StrategyGoal = Literal["retirement", "lump_sum", "cashflow"]
 RiskProfile = Literal["conservative", "balanced", "growth"]
@@ -63,4 +63,28 @@ class StrategyResponse(BaseModel):
     action_steps: list[StrategyActionStep]
     warnings: list[str]
     assumptions: list[str]
+    disclaimer: str
+
+
+class StrategyExplanationHighlight(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=80)
+    explanation: str = Field(min_length=1, max_length=500)
+    evidence_codes: list[str] = Field(min_length=1, max_length=3)
+
+
+class StrategyExplanationNarrative(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    overview: str = Field(min_length=1, max_length=700)
+    highlights: list[StrategyExplanationHighlight] = Field(min_length=2, max_length=4)
+    caution: str = Field(min_length=1, max_length=500)
+
+
+class StrategyExplanationResponse(StrategyExplanationNarrative):
+    engine_version: str
+    strategy_id: str
+    provider: Literal["openai"]
+    model: str
     disclaimer: str

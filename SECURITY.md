@@ -29,7 +29,21 @@
 - Supabase secret/service-role 키와 기존 JWT shared secret은 절대 프론트엔드에
   두지 않습니다.
 - 실제 `.env` 파일은 Git에 커밋하지 않습니다.
+- OpenAI API 키는 `backend/.env`의 `OPENAI_API_KEY`에만 두고 브라우저 변수,
+  API 응답, 운영 설정 점검 출력에 포함하지 않습니다.
 - 주문·토큰·사용자 금융정보를 애플리케이션 로그에 기록하지 않습니다.
+
+## AI strategy explanation
+
+- AI 설명은 사용자가 버튼을 눌렀을 때만 호출하며, 호출 전에 목적·기간·월
+  투자금과 규칙 엔진 결과가 OpenAI에 전송된다는 점을 화면에 표시합니다.
+- 서버는 클라이언트가 보낸 추천 결과를 신뢰하지 않고 `STRATEGY-2026.07`
+  엔진으로 다시 계산한 결과만 모델에 제공합니다.
+- 사용자 ID 원문은 보내지 않고 단방향 SHA-256 값만 API 안전 식별자로
+  사용합니다. 이메일, access token, 계좌·원장과 목표 금액은 보내지 않습니다.
+- 모델 출력은 JSON Schema로 제한하고 실제 규칙 근거 코드만 인용하도록
+  재검증합니다. 비중·금액·세율 계산과 최종 투자 결정은 계속 결정적 엔진과
+  사용자에게 남습니다.
 
 ## Authentication and account isolation
 

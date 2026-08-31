@@ -1,6 +1,13 @@
+from unittest.mock import AsyncMock
+
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.schemas.strategy import StrategyExplanationResponse
+from app.services.strategy_explanation import (
+    StrategyExplanationUnavailable,
+    strategy_explanation_service,
+)
 
 client = TestClient(app)
 
@@ -80,3 +87,69 @@ def test_income_preference_changes_allocation_deterministically() -> None:
     preferred_income = next(item for item in income["allocations"] if item["asset_class"] == "income")
     assert preferred_income["weight_pct"] > baseline_income["weight_pct"]
     assert income == repeated
+
+
+def test_ai_explanation_recalculates_strategy_on_server(monkeypatch) -> None:
+    explanation = StrategyExplanationResponse(
+        engine_version="STRATEGY-2026.07",
+        strategy_id="retirement-growth-long",
+        provider="openai",
+        model="gpt-5.6",
+        overview="규칙 결과를 쉽게 설명합니다.",
+        highlights=[
+            {
+                "title": "은퇴 목적",
+                "explanation": "연금계좌 중심 실행 순서를 설명합니다.",
+                "evidence_codes": ["GOAL_RETIREMENT"],
+            },
+            {
+                "title": "장기 계획",
+                "explanation": "장기 점검 원칙을 설명합니다.",
+                "evidence_codes": ["HORIZON_LONG"],
+            },
+        ],
+        caution="원금 손실 가능성을 확인하세요.",
+        disclaimer="AI는 규칙 결과만 설명합니다.",
+    )
+    explain = AsyncMock(return_value=explanation)
+    monkeypatch.setattr(strategy_explanation_service, "explain", explain)
+
+    response = client.post(
+        "/api/v1/strategies/explain",
+        json={
+            "goal": "retirement",
+            "horizon_years": 30,
+            "monthly_amount_krw": 500_000,
+            "risk_profile": "growth",
+            "liquidity_preference": True,
+            "fee_sensitivity": True,
+            "income_preference": False,
+            "tax_efficiency_priority": True,
+        },
+    )
+
+    assert response.status_code == 200
+    called_request, called_recommendation, called_user_id = explain.await_args.args
+    assert called_request.monthly_amount_krw == 500_000
+    assert called_recommendation.engine_version == "STRATEGY-2026.07"
+    assert called_user_id == "demo-user"
+
+
+def test_ai_explanation_reports_disabled_provider(monkeypatch) -> None:
+    explain = AsyncMock(
+        side_effect=StrategyExplanationUnavailable("AI 전략 설명이 설정되지 않았습니다.")
+    )
+    monkeypatch.setattr(strategy_explanation_service, "explain", explain)
+
+    response = client.post(
+        "/api/v1/strategies/explain",
+        json={
+            "goal": "retirement",
+            "horizon_years": 30,
+            "monthly_amount_krw": 500_000,
+            "risk_profile": "growth",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "AI 전략 설명이 설정되지 않았습니다."

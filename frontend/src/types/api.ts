@@ -278,6 +278,23 @@ export interface StrategyResponse {
   disclaimer: string;
 }
 
+export interface StrategyExplanationHighlight {
+  title: string;
+  explanation: string;
+  evidence_codes: string[];
+}
+
+export interface StrategyExplanationResponse {
+  engine_version: string;
+  strategy_id: string;
+  provider: 'openai';
+  model: string;
+  overview: string;
+  highlights: StrategyExplanationHighlight[];
+  caution: string;
+  disclaimer: string;
+}
+
 export interface QuoteTick {
   symbol: string;
   price: number;
