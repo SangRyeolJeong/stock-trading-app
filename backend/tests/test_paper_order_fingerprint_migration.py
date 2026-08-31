@@ -2,6 +2,8 @@ import sqlite3
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from alembic import command
 from alembic.config import Config
 from app.core.config import get_settings
@@ -70,11 +72,21 @@ def test_migration_backfills_existing_order_fingerprint(
         )
         with sqlite3.connect(database_path) as connection:
             fingerprint = connection.execute("SELECT request_fingerprint FROM paper_orders").fetchone()
+            events = connection.execute(
+                """
+                SELECT sequence, previous_status, new_status, reason
+                FROM order_status_events
+                ORDER BY sequence
+                """
+            ).fetchall()
             columns = connection.execute("PRAGMA table_info('paper_orders')").fetchall()
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+            with pytest.raises(sqlite3.IntegrityError):
+                connection.execute("UPDATE paper_orders SET status = 'unknown'")
 
         assert fingerprint == (expected,)
+        assert events == [(1, None, "accepted", "migration_backfill")]
         assert next(column for column in columns if column[1] == "request_fingerprint")[3] == 1
-        assert revision == ("20260823_0004",)
+        assert revision == ("20260901_0005",)
     finally:
         get_settings.cache_clear()

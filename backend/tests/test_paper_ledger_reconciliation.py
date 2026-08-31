@@ -88,6 +88,7 @@ async def test_reconciler_detects_execution_and_order_status_mismatch() -> None:
     codes = await reconcile_codes()
 
     assert "UNFILLED_HAS_EXECUTION" in codes
+    assert "ORDER_STATUS_EVENT_MISMATCH" in codes
 
 
 @pytest.mark.asyncio

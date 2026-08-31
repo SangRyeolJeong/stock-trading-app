@@ -48,6 +48,18 @@ class PaperOrder(BaseModel):
     created_at: datetime
 
 
+class PaperOrderStatusEvent(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    order_id: UUID
+    sequence: int
+    previous_status: Literal["accepted", "filled", "rejected", "cancelled"] | None
+    new_status: Literal["accepted", "filled", "rejected", "cancelled"]
+    reason: str
+    created_at: datetime
+
+
 class CashBalance(BaseModel):
     currency: Currency
     amount: Decimal

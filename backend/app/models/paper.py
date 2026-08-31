@@ -55,6 +55,10 @@ class PaperOrder(Base):
     __table_args__ = (
         UniqueConstraint("account_id", "idempotency_key", name="uq_paper_orders_account_id_idempotency_key"),
         CheckConstraint("quantity > 0", name="quantity_positive"),
+        CheckConstraint(
+            "status IN ('accepted', 'filled', 'cancelled', 'rejected')",
+            name="status_valid",
+        ),
         Index("ix_paper_orders_account_created", "account_id", "created_at"),
     )
 
@@ -67,7 +71,37 @@ class PaperOrder(Base):
     order_type: Mapped[str] = mapped_column(String(10))
     quantity: Mapped[Decimal] = mapped_column(QUANTITY)
     requested_price: Mapped[Decimal | None] = mapped_column(MONEY)
-    status: Mapped[str] = mapped_column(String(20), default="filled")
+    status: Mapped[str] = mapped_column(String(20), default="accepted")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PaperOrderStatusEvent(Base):
+    __tablename__ = "order_status_events"
+    __table_args__ = (
+        CheckConstraint(
+            "previous_status IS NULL OR previous_status IN "
+            "('accepted', 'filled', 'cancelled', 'rejected')",
+            name="previous_status_valid",
+        ),
+        CheckConstraint(
+            "new_status IN ('accepted', 'filled', 'cancelled', 'rejected')",
+            name="new_status_valid",
+        ),
+        CheckConstraint(
+            "(previous_status IS NULL AND new_status = 'accepted') OR "
+            "(previous_status = 'accepted' AND new_status IN ('filled', 'cancelled', 'rejected'))",
+            name="transition_valid",
+        ),
+        UniqueConstraint("order_id", "sequence", name="uq_order_status_events_order_sequence"),
+        Index("ix_order_status_events_order_created", "order_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    order_id: Mapped[UUID] = mapped_column(ForeignKey("paper_orders.id"), index=True)
+    sequence: Mapped[int] = mapped_column()
+    previous_status: Mapped[str | None] = mapped_column(String(20))
+    new_status: Mapped[str] = mapped_column(String(20))
+    reason: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

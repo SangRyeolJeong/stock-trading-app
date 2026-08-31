@@ -17,6 +17,7 @@ from app.models.paper import (
     PaperAccount,
     PaperExecution,
     PaperOrder,
+    PaperOrderStatusEvent,
     PortfolioSnapshot,
     Position,
     Security,
@@ -32,8 +33,14 @@ from app.schemas.paper import (
 from app.schemas.paper import (
     PaperOrder as PaperOrderSchema,
 )
+from app.schemas.paper import PaperOrderStatusEvent as PaperOrderStatusEventSchema
 from app.schemas.paper import (
     Position as PositionSchema,
+)
+from app.services.paper_order_state import (
+    InvalidOrderStateError,
+    record_order_creation,
+    transition_order,
 )
 
 MONEY_QUANTUM = Decimal("0.00000001")
@@ -60,10 +67,6 @@ class IdempotencyConflictError(PaperTradingError):
 
 class AccountNotFoundError(PaperTradingError):
     status_code = 404
-
-
-class InvalidOrderStateError(PaperTradingError):
-    status_code = 409
 
 
 @dataclass(frozen=True)
@@ -477,7 +480,12 @@ class PaperTradingService:
             realized_pnl=realized_pnl,
         )
         session.add(execution)
-        order.status = "filled"
+        transition_order(
+            session,
+            order,
+            "filled",
+            reason="order_filled",
+        )
         return execution
 
     async def _record_trade_settlement(
@@ -551,7 +559,6 @@ class PaperTradingService:
         account_id: str,
         request: PaperOrderRequest,
         quote: Quote,
-        should_fill: bool,
         request_fingerprint: str,
     ) -> PaperOrder:
         order = PaperOrder(
@@ -563,9 +570,11 @@ class PaperTradingService:
             order_type=request.order_type,
             quantity=request.quantity,
             requested_price=request.limit_price,
-            status="filled" if should_fill else "accepted",
+            status="accepted",
         )
         session.add(order)
+        await session.flush()
+        record_order_creation(session, order)
         await session.flush()
         return order
 
@@ -612,7 +621,6 @@ class PaperTradingService:
                 account.id,
                 request,
                 quote,
-                should_fill,
                 fingerprint,
             )
             if not should_fill:
@@ -676,7 +684,12 @@ class PaperTradingService:
             try:
                 await self._settle_order(session, order, quote)
             except (InsufficientCashError, InsufficientPositionError):
-                order.status = "rejected"
+                transition_order(
+                    session,
+                    order,
+                    "rejected",
+                    reason="resources_unavailable_at_fill",
+                )
                 await session.flush()
             return True
 
@@ -708,7 +721,12 @@ class PaperTradingService:
                 return self._order_schema(order, execution, security)
             if order.status != "accepted":
                 raise InvalidOrderStateError("대기 중인 지정가 주문만 취소할 수 있습니다.")
-            order.status = "cancelled"
+            transition_order(
+                session,
+                order,
+                "cancelled",
+                reason="user_cancelled",
+            )
             await session.flush()
             await session.refresh(order)
             return self._order_schema(order, execution, security)
@@ -755,6 +773,31 @@ class PaperTradingService:
                 )
             ).all()
             return [self._order_schema(*row) for row in rows]
+
+    async def list_order_status_events(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        order_id: UUID,
+    ) -> list[PaperOrderStatusEventSchema]:
+        async with session.begin():
+            account = await self.ensure_user_account(session, user_id)
+            order = await session.scalar(
+                select(PaperOrder).where(
+                    PaperOrder.id == order_id,
+                    PaperOrder.account_id == account.id,
+                )
+            )
+            if order is None:
+                raise AccountNotFoundError("주문을 찾을 수 없습니다.")
+            events = list(
+                await session.scalars(
+                    select(PaperOrderStatusEvent)
+                    .where(PaperOrderStatusEvent.order_id == order.id)
+                    .order_by(PaperOrderStatusEvent.sequence)
+                )
+            )
+            return [PaperOrderStatusEventSchema.model_validate(event) for event in events]
 
     async def list_positions(
         self,

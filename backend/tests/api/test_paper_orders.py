@@ -189,6 +189,37 @@ def test_pending_limit_order_can_be_cancelled() -> None:
     assert response.json()["status"] == "cancelled"
     assert client.get("/api/v1/paper/orders").json()[0]["status"] == "cancelled"
 
+    repeated = client.delete(f"/api/v1/paper/orders/{order['id']}")
+    events = client.get(f"/api/v1/paper/orders/{order['id']}/events").json()
+
+    assert repeated.status_code == 200
+    assert repeated.json()["status"] == "cancelled"
+    assert [(event["previous_status"], event["new_status"]) for event in events] == [
+        (None, "accepted"),
+        ("accepted", "cancelled"),
+    ]
+    assert [event["reason"] for event in events] == ["order_created", "user_cancelled"]
+
+
+def test_filled_order_has_auditable_history_and_cannot_be_cancelled() -> None:
+    order = client.post("/api/v1/paper/orders", json=base_order()).json()
+
+    cancel = client.delete(f"/api/v1/paper/orders/{order['id']}")
+    events = client.get(f"/api/v1/paper/orders/{order['id']}/events")
+
+    assert cancel.status_code == 409
+    assert events.status_code == 200
+    assert [(event["sequence"], event["new_status"]) for event in events.json()] == [
+        (1, "accepted"),
+        (2, "filled"),
+    ]
+
+
+def test_order_history_is_scoped_to_current_users_orders() -> None:
+    response = client.get("/api/v1/paper/orders/11111111-1111-1111-1111-111111111111/events")
+
+    assert response.status_code == 404
+
 
 def test_pending_buy_reserves_cash_until_cancelled() -> None:
     pending = base_order()

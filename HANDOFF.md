@@ -48,6 +48,22 @@ git log --oneline -5
 
 ## 마지막 검증 결과
 
+2026-09-01 주문 상태 머신과 감사 이력 검증:
+
+```text
+backend pytest: 159 passed, 6 PostgreSQL tests skipped
+backend Ruff (app tests): All checks passed
+frontend Vitest: 20 files, 61 passed
+frontend build: passed
+frontend ESLint: passed
+git diff check: passed
+```
+
+`accepted`에서 체결·취소·거절로만 이동하는 상태 머신과 DB `CHECK` 제약,
+`order_status_events` 감사 이력 및 사용자 범위 조회 API를 추가했다. 반복 취소는
+이벤트를 중복 생성하지 않으며 원장 대사기는 현재 상태와 마지막 이벤트 불일치도
+탐지한다.
+
 2026-08-31 모의 원장 대사 검증:
 
 ```text

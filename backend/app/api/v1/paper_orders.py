@@ -12,11 +12,13 @@ from app.schemas.paper import (
     PaperAccount,
     PaperOrder,
     PaperOrderRequest,
+    PaperOrderStatusEvent,
     PortfolioCurrencySummary,
     PortfolioSummary,
     Position,
 )
 from app.services.market import market_data_service
+from app.services.paper_order_state import InvalidOrderStateError
 from app.services.paper_trading import PaperTradingError, money, paper_trading_service
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -77,6 +79,21 @@ async def cancel_paper_order(
 ) -> PaperOrder:
     try:
         return await paper_trading_service.cancel_order(session, user.id, order_id)
+    except (PaperTradingError, InvalidOrderStateError) as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+@router.get(
+    "/paper/orders/{order_id}/events",
+    response_model=list[PaperOrderStatusEvent],
+)
+async def list_paper_order_status_events(
+    order_id: UUID,
+    session: Session,
+    user: CurrentUser,
+) -> list[PaperOrderStatusEvent]:
+    try:
+        return await paper_trading_service.list_order_status_events(session, user.id, order_id)
     except PaperTradingError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 

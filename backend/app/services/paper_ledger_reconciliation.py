@@ -11,6 +11,7 @@ from app.models.paper import (
     PaperAccount,
     PaperExecution,
     PaperOrder,
+    PaperOrderStatusEvent,
     Position,
     Security,
 )
@@ -111,6 +112,17 @@ class PaperLedgerReconciler:
             if order_ids
             else []
         )
+        status_events = (
+            list(
+                await session.scalars(
+                    select(PaperOrderStatusEvent)
+                    .where(PaperOrderStatusEvent.order_id.in_(order_ids))
+                    .order_by(PaperOrderStatusEvent.order_id, PaperOrderStatusEvent.sequence)
+                )
+            )
+            if order_ids
+            else []
+        )
         ledger_entries = list(
             await session.scalars(
                 select(CashLedgerEntry)
@@ -129,6 +141,9 @@ class PaperLedgerReconciler:
         executions_by_order: dict[UUID, list[PaperExecution]] = defaultdict(list)
         for execution in executions:
             executions_by_order[execution.order_id].append(execution)
+        events_by_order: dict[UUID, list[PaperOrderStatusEvent]] = defaultdict(list)
+        for event in status_events:
+            events_by_order[event.order_id].append(event)
         ledger_by_order: dict[UUID, list[CashLedgerEntry]] = defaultdict(list)
         for entry in ledger_entries:
             if entry.order_id is not None:
@@ -140,6 +155,7 @@ class PaperLedgerReconciler:
             securities,
             executions_by_order,
             ledger_by_order,
+            events_by_order,
         )
         known_order_ids = set(order_ids)
         for entry in ledger_entries:
@@ -171,6 +187,7 @@ class PaperLedgerReconciler:
         securities: dict[UUID, Security],
         executions_by_order: dict[UUID, list[PaperExecution]],
         ledger_by_order: dict[UUID, list[CashLedgerEntry]],
+        events_by_order: dict[UUID, list[PaperOrderStatusEvent]],
     ) -> list[ReconciliationIssue]:
         issues: list[ReconciliationIssue] = []
         for order in orders:
@@ -183,6 +200,23 @@ class PaperLedgerReconciler:
                 "currency": security.currency,
                 "symbol": security.symbol,
             }
+            events = events_by_order[order.id]
+            if not events:
+                issues.append(
+                    ReconciliationIssue(
+                        code="ORDER_STATUS_HISTORY_MISSING",
+                        message="주문 상태 이력이 없습니다.",
+                        **context,
+                    )
+                )
+            elif events[-1].new_status != order.status:
+                issues.append(
+                    ReconciliationIssue(
+                        code="ORDER_STATUS_EVENT_MISMATCH",
+                        message="현재 주문 상태와 마지막 상태 이벤트가 다릅니다.",
+                        **context,
+                    )
+                )
             if order.status == "filled" and len(executions) != 1:
                 issues.append(
                     ReconciliationIssue(

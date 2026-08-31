@@ -9,7 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import DEMO_USER_ID
 from app.db.session import async_session_factory
-from app.models.paper import CashLedgerEntry, PaperAccount, PaperExecution, PaperOrder, Position
+from app.models.paper import (
+    CashLedgerEntry,
+    PaperAccount,
+    PaperExecution,
+    PaperOrder,
+    PaperOrderStatusEvent,
+    Position,
+)
 from app.schemas.market import Quote
 from app.schemas.paper import PaperOrder as PaperOrderSchema
 from app.schemas.paper import PaperOrderRequest
@@ -249,7 +256,15 @@ async def test_pending_fill_and_cancel_cannot_both_win(
         execution_count = await session.scalar(
             select(func.count()).select_from(PaperExecution).where(PaperExecution.order_id == pending.id)
         )
+        events = list(
+            await session.scalars(
+                select(PaperOrderStatusEvent)
+                .where(PaperOrderStatusEvent.order_id == pending.id)
+                .order_by(PaperOrderStatusEvent.sequence)
+            )
+        )
     assert stored is not None
+    assert [event.new_status for event in events] == ["accepted", stored.status]
     if stored.status == "filled":
         assert fill_result is True
         assert isinstance(cancel_result, InvalidOrderStateError)

@@ -11,6 +11,7 @@ from app.models.paper import (
     CashLedgerEntry,
     PaperExecution,
     PaperOrder,
+    PaperOrderStatusEvent,
     PortfolioSnapshot,
     Position,
     Security,
@@ -197,6 +198,15 @@ async def test_expected_resource_failure_rejects_pending_order_and_commits_busin
         order = await session.get(PaperOrder, pending.id)
         assert order is not None
         assert order.status == "rejected"
+        events = list(
+            await session.scalars(
+                select(PaperOrderStatusEvent)
+                .where(PaperOrderStatusEvent.order_id == pending.id)
+                .order_by(PaperOrderStatusEvent.sequence)
+            )
+        )
+        assert [event.new_status for event in events] == ["accepted", "rejected"]
+        assert events[-1].reason == "resources_unavailable_at_fill"
         assert await session.scalar(select(func.count()).select_from(PaperExecution)) == 0
         assert await session.scalar(select(func.count()).select_from(Position)) == 0
         assert await session.scalar(select(func.count()).select_from(PortfolioSnapshot)) == 0
