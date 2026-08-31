@@ -148,6 +148,18 @@ app/
 모든 모의투자·포트폴리오 API는 현재 인증 사용자의 계좌로 자동 범위가
 제한됩니다. 데모 모드에서도 같은 서버 측 경계를 거쳐 `demo-user`로 동작합니다.
 
+주문·체결·현금 원장·포지션이 서로 일치하는지 읽기 전용으로 점검하려면 대사
+CLI를 실행합니다.
+
+```bash
+cd backend
+.venv/bin/python -m app.cli.reconcile_paper_ledger
+.venv/bin/python -m app.cli.reconcile_paper_ledger --account-id demo-account
+```
+
+정상이면 종료 코드 0, 불일치면 1, DB 점검 자체가 실패하면 2를 반환합니다. 기존
+원장 행은 수정하지 않으며 문제 코드와 계좌·주문·통화·종목 범위만 출력합니다.
+
 ## 사용자 설정 API
 
 - `GET /api/v1/me/preferences`

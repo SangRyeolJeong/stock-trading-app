@@ -48,6 +48,22 @@ git log --oneline -5
 
 ## 마지막 검증 결과
 
+2026-08-31 모의 원장 대사 검증:
+
+```text
+backend pytest: 151 passed, 6 PostgreSQL tests skipped
+backend Ruff (app tests): All checks passed
+frontend Vitest: 20 files, 61 passed
+frontend build: passed
+frontend ESLint: passed
+git diff check: passed
+```
+
+읽기 전용 `PaperLedgerReconciler`와 `reconcile_paper_ledger` CLI가 주문·체결·
+현금 원장·포지션 불변식을 계좌별로 점검한다. 정상/불일치/점검 실패를 종료 코드
+0/1/2로 구분하며 자동 보정은 하지 않는다. DB 권한 기반 append-only 강제는
+migration owner와 runtime role을 분리할 때 적용할 운영 작업으로 남겼다.
+
 2026-08-31 AI 전략 설명과 ETF 최신 자료 갱신 검증:
 
 ```text
@@ -203,6 +219,7 @@ npm run lint
 - 미국상장 4종과 국내상장 KODEX·TIGER 4종의 공식 운용사 스냅샷 기반 ETF
   보수·상위 구성종목 중복도·상장국 비교
 - 시장가/지정가 주문, 자동 체결, 취소, 현금·수량 예약, 평균단가와 실현손익
+- 주문·체결·현금 원장·포지션 불변식의 읽기 전용 대사 CLI
 - 포트폴리오 및 주문 내역 API/화면
 - 실제 보유 원장 기반 주문 전 포트폴리오 영향 계산과 집중도 진단
 - 전략 목표 대비 현재 비중 차이와 다음 월 투자금 리밸런싱 제안
