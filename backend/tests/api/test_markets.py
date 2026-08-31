@@ -13,8 +13,13 @@ def test_etf_official_snapshots_are_not_stale() -> None:
 
 
 def test_etf_snapshot_freshness_uses_source_specific_cadence() -> None:
-    assert stale_etf_symbols(as_of=date(2026, 8, 15)) == ["SPY"]
-    assert stale_etf_symbols(as_of=date(2026, 8, 18)) == ["379800", "SPY"]
+    september_stale = stale_etf_symbols(as_of=date(2026, 9, 11))
+    october_stale = stale_etf_symbols(as_of=date(2026, 10, 13))
+
+    assert "SPY" in september_stale
+    assert not {"379800", "379810", "360750", "133690"} & set(september_stale)
+    assert {"379800", "379810"} <= set(october_stale)
+    assert not {"360750", "133690"} & set(october_stale)
 
 
 def test_unknown_symbol_returns_not_found() -> None:

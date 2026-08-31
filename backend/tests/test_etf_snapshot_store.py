@@ -17,8 +17,8 @@ def test_default_snapshot_file_contains_every_supported_domestic_source() -> Non
     snapshots = load_official_snapshots()
 
     assert set(snapshots) == set(SUPPORTED_SOURCE_SYMBOLS)
-    assert snapshots["379800"].facts_as_of == date(2026, 7, 31)
-    assert snapshots["360750"].top_holdings[0].symbol == "AAPL"
+    assert snapshots["379800"].facts_as_of == date(2026, 8, 28)
+    assert snapshots["360750"].top_holdings[0].symbol == "NVDA"
 
 
 def test_snapshot_file_round_trips_deterministically(tmp_path) -> None:

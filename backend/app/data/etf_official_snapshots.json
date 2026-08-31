@@ -2,229 +2,234 @@
   "schema_version": 1,
   "snapshots": {
     "133690": {
-      "facts_as_of": "2026-07-31",
-      "holdings_as_of": "2026-07-31",
-      "holdings_count": 104,
+      "facts_as_of": "2026-08-31",
+      "holdings_as_of": "2026-08-31",
+      "holdings_count": 103,
       "symbol": "133690",
       "top_holdings": [
         {
-          "name": "Apple",
-          "symbol": "AAPL",
-          "weight_pct": "8.16"
-        },
-        {
-          "name": "NVIDIA",
+          "name": "NVIDIA Corp",
           "symbol": "NVDA",
-          "weight_pct": "7.86"
+          "weight_pct": "8.74"
         },
         {
-          "name": "Microsoft",
+          "name": "Apple Inc",
+          "symbol": "AAPL",
+          "weight_pct": "7.32"
+        },
+        {
+          "name": "Microsoft Corp",
           "symbol": "MSFT",
-          "weight_pct": "5.58"
+          "weight_pct": "5.95"
         },
         {
-          "name": "Micron Technology",
+          "name": "Micron Technology Inc",
           "symbol": "MU",
-          "weight_pct": "4.53"
+          "weight_pct": "4.62"
         },
         {
-          "name": "Amazon",
+          "name": "Amazon.com Inc",
           "symbol": "AMZN",
-          "weight_pct": "4.22"
+          "weight_pct": "4.37"
         },
         {
-          "name": "Advanced Micro Devices",
+          "name": "Advanced Micro Devices Inc",
           "symbol": "AMD",
-          "weight_pct": "3.64"
+          "weight_pct": "3.40"
         },
         {
-          "name": "Alphabet A",
+          "name": "Alphabet Inc",
           "symbol": "GOOGL",
-          "weight_pct": "3.24"
+          "weight_pct": "3.14"
         },
         {
-          "name": "Broadcom",
-          "symbol": "AVGO",
-          "weight_pct": "3.06"
-        },
-        {
-          "name": "Alphabet C",
+          "name": "Alphabet Inc",
           "symbol": "GOOG",
-          "weight_pct": "3.03"
+          "weight_pct": "2.92"
         },
         {
-          "name": "Meta Platforms A",
-          "symbol": "META",
-          "weight_pct": "2.66"
+          "name": "Tesla Inc",
+          "symbol": "TSLA",
+          "weight_pct": "2.81"
+        },
+        {
+          "name": "Broadcom Inc",
+          "symbol": "AVGO",
+          "weight_pct": "2.79"
         }
       ]
     },
     "360750": {
-      "facts_as_of": "2026-07-31",
-      "holdings_as_of": "2026-07-31",
+      "facts_as_of": "2026-08-31",
+      "holdings_as_of": "2026-08-31",
       "holdings_count": 504,
       "symbol": "360750",
       "top_holdings": [
         {
-          "name": "Apple",
-          "symbol": "AAPL",
-          "weight_pct": "7.65"
-        },
-        {
-          "name": "NVIDIA",
+          "name": "NVIDIA Corp",
           "symbol": "NVDA",
-          "weight_pct": "7.38"
+          "weight_pct": "8.30"
         },
         {
-          "name": "Microsoft",
+          "name": "Apple Inc",
+          "symbol": "AAPL",
+          "weight_pct": "6.94"
+        },
+        {
+          "name": "Microsoft Corp",
           "symbol": "MSFT",
-          "weight_pct": "5.24"
+          "weight_pct": "5.64"
         },
         {
-          "name": "Amazon",
+          "name": "Amazon.com Inc",
           "symbol": "AMZN",
-          "weight_pct": "3.60"
+          "weight_pct": "3.77"
         },
         {
-          "name": "Alphabet A",
+          "name": "Alphabet Inc",
           "symbol": "GOOGL",
-          "weight_pct": "3.06"
+          "weight_pct": "3.00"
         },
         {
-          "name": "Broadcom",
+          "name": "Broadcom Inc",
           "symbol": "AVGO",
-          "weight_pct": "2.87"
+          "weight_pct": "2.64"
         },
         {
-          "name": "Alphabet C",
+          "name": "Alphabet Inc",
           "symbol": "GOOG",
-          "weight_pct": "2.46"
+          "weight_pct": "2.40"
         },
         {
-          "name": "Meta Platforms A",
+          "name": "Meta Platforms Inc",
           "symbol": "META",
-          "weight_pct": "1.85"
+          "weight_pct": "1.88"
         },
         {
-          "name": "Micron Technology",
+          "name": "Micron Technology Inc",
           "symbol": "MU",
-          "weight_pct": "1.54"
+          "weight_pct": "1.59"
         },
         {
-          "name": "JPMorgan Chase",
-          "symbol": "JPM",
-          "weight_pct": "1.47"
+          "name": "Tesla Inc",
+          "symbol": "TSLA",
+          "weight_pct": "1.50"
         }
       ]
     },
     "379800": {
-      "facts_as_of": "2026-07-31",
-      "holdings_as_of": "2026-07-03",
-      "holdings_count": 506,
+      "facts_as_of": "2026-08-28",
+      "holdings_as_of": "2026-08-31",
+      "holdings_count": 505,
       "symbol": "379800",
       "top_holdings": [
         {
-          "name": "NVIDIA",
+          "name": "NVIDIA Corp",
           "symbol": "NVDA",
-          "weight_pct": "7.34"
+          "weight_pct": "8.3"
         },
         {
-          "name": "Apple",
+          "name": "APPLE Inc",
           "symbol": "AAPL",
-          "weight_pct": "7.05"
+          "weight_pct": "6.95"
         },
         {
-          "name": "Microsoft",
+          "name": "MICROSOFT",
           "symbol": "MSFT",
-          "weight_pct": "4.51"
+          "weight_pct": "5.64"
         },
         {
-          "name": "Amazon",
+          "name": "Amazon.com Inc",
           "symbol": "AMZN",
-          "weight_pct": "3.69"
+          "weight_pct": "3.77"
         },
         {
-          "name": "Alphabet A",
+          "name": "ALPHABET INC-CL A",
           "symbol": "GOOGL",
-          "weight_pct": "3.28"
+          "weight_pct": "3.0"
         },
         {
-          "name": "Broadcom",
+          "name": "BROADCOM LTD",
           "symbol": "AVGO",
           "weight_pct": "2.65"
         },
         {
-          "name": "Alphabet C",
+          "name": "ALPHABET INC-CL C",
           "symbol": "GOOG",
-          "weight_pct": "2.62"
+          "weight_pct": "2.4"
         },
         {
-          "name": "Meta Platforms A",
+          "name": "Meta Platforms Inc-CL A",
           "symbol": "META",
-          "weight_pct": "2.10"
+          "weight_pct": "1.89"
         },
         {
-          "name": "Tesla",
+          "name": "MICRON TECH",
+          "symbol": "MU",
+          "weight_pct": "1.59"
+        },
+        {
+          "name": "TESLA MOTORS",
           "symbol": "TSLA",
-          "weight_pct": "1.76"
+          "weight_pct": "1.5"
         }
       ]
     },
     "379810": {
-      "facts_as_of": "2026-07-31",
-      "holdings_as_of": "2026-07-08",
-      "holdings_count": 105,
+      "facts_as_of": "2026-08-28",
+      "holdings_as_of": "2026-08-31",
+      "holdings_count": 104,
       "symbol": "379810",
       "top_holdings": [
         {
-          "name": "NVIDIA",
+          "name": "NVIDIA Corp",
           "symbol": "NVDA",
-          "weight_pct": "7.66"
+          "weight_pct": "8.75"
         },
         {
-          "name": "Apple",
+          "name": "APPLE Inc",
           "symbol": "AAPL",
           "weight_pct": "7.33"
         },
         {
-          "name": "Micron Technology",
-          "symbol": "MU",
-          "weight_pct": "4.70"
-        },
-        {
-          "name": "Microsoft",
+          "name": "MICROSOFT",
           "symbol": "MSFT",
-          "weight_pct": "4.64"
+          "weight_pct": "5.95"
         },
         {
-          "name": "Amazon",
+          "name": "MICRON TECH",
+          "symbol": "MU",
+          "weight_pct": "4.62"
+        },
+        {
+          "name": "Amazon.com Inc",
           "symbol": "AMZN",
-          "weight_pct": "4.25"
+          "weight_pct": "4.37"
         },
         {
-          "name": "Advanced Micro Devices",
+          "name": "ADVANCED MICRO DEVICES",
           "symbol": "AMD",
-          "weight_pct": "3.73"
+          "weight_pct": "3.4"
         },
         {
-          "name": "Alphabet A",
+          "name": "ALPHABET INC-CL A",
           "symbol": "GOOGL",
-          "weight_pct": "3.44"
+          "weight_pct": "3.15"
         },
         {
-          "name": "Tesla",
-          "symbol": "TSLA",
-          "weight_pct": "3.24"
-        },
-        {
-          "name": "Alphabet C",
+          "name": "ALPHABET INC-CL C",
           "symbol": "GOOG",
-          "weight_pct": "3.19"
+          "weight_pct": "2.92"
         },
         {
-          "name": "Meta Platforms A",
-          "symbol": "META",
-          "weight_pct": "2.93"
+          "name": "TESLA MOTORS",
+          "symbol": "TSLA",
+          "weight_pct": "2.81"
+        },
+        {
+          "name": "BROADCOM LTD",
+          "symbol": "AVGO",
+          "weight_pct": "2.79"
         }
       ]
     }

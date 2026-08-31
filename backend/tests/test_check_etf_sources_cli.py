@@ -9,8 +9,8 @@ def newer_snapshot(symbol: str):
     snapshot = load_official_snapshots()[symbol]
     return replace(
         snapshot,
-        facts_as_of=date(2026, 8, 1),
-        holdings_as_of=date(2026, 8, 1),
+        facts_as_of=date(2026, 9, 1),
+        holdings_as_of=date(2026, 9, 1),
     )
 
 
@@ -20,12 +20,12 @@ def test_update_writes_a_complete_candidate_snapshot(tmp_path) -> None:
     result = main(
         ["--update", "--output", str(output)],
         fetcher=newer_snapshot,
-        as_of=date(2026, 8, 8),
+        as_of=date(2026, 9, 2),
     )
 
     assert result == 0
     updated = load_official_snapshots(output)
-    assert all(snapshot.facts_as_of == date(2026, 8, 1) for snapshot in updated.values())
+    assert all(snapshot.facts_as_of == date(2026, 9, 1) for snapshot in updated.values())
 
 
 def test_update_is_all_or_nothing_when_one_source_fails(tmp_path) -> None:
@@ -40,7 +40,7 @@ def test_update_is_all_or_nothing_when_one_source_fails(tmp_path) -> None:
     result = main(
         ["--update", "--output", str(output)],
         fetcher=failing_fetcher,
-        as_of=date(2026, 8, 8),
+        as_of=date(2026, 9, 2),
     )
 
     assert result == 1
@@ -61,7 +61,7 @@ def test_update_rejects_a_source_date_regression(tmp_path) -> None:
     result = main(
         ["--update", "--output", str(output)],
         fetcher=older_fetcher,
-        as_of=date(2026, 8, 8),
+        as_of=date(2026, 9, 2),
     )
 
     assert result == 1
@@ -72,7 +72,7 @@ def test_check_fails_when_the_repository_has_an_update_available() -> None:
     result = main(
         ["--check", "379800"],
         fetcher=newer_snapshot,
-        as_of=date(2026, 8, 8),
+        as_of=date(2026, 9, 2),
     )
 
     assert result == 1
