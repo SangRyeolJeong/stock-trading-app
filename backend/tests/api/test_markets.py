@@ -90,7 +90,7 @@ def test_etf_catalog_exposes_versioned_official_snapshots() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["data_version"] == "ETF-COMPARE-2026.08.1"
+    assert payload["data_version"] == "ETF-COMPARE-2026.09"
     assert {item["symbol"] for item in payload["items"]} == {
         "QQQM",
         "QQQ",
@@ -106,6 +106,21 @@ def test_etf_catalog_exposes_versioned_official_snapshots() -> None:
     kodex = next(item for item in payload["items"] if item["symbol"] == "379800")
     assert kodex["listing_country"] == "KR"
     assert kodex["trading_currency"] == "KRW"
+    voo = next(item for item in payload["items"] if item["symbol"] == "VOO")
+    assert voo["facts_as_of"] == "2026-08-31"
+    assert voo["holdings_as_of"] == "2026-07-31"
+    assert [holding["symbol"] for holding in voo["top_holdings"]] == [
+        "NVDA",
+        "AAPL",
+        "MSFT",
+        "AMZN",
+        "GOOGL",
+        "AVGO",
+        "GOOG",
+        "META",
+        "JPM",
+        "BRK/B",
+    ]
 
 
 def test_etf_comparison_calculates_overlap_and_fee_difference() -> None:

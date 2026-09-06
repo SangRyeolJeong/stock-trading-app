@@ -11,7 +11,7 @@ from app.schemas.market import (
 )
 from app.services.etf_snapshot_store import load_official_snapshots
 
-DATA_VERSION = "ETF-COMPARE-2026.08.1"
+DATA_VERSION = "ETF-COMPARE-2026.09"
 COMPARISON_PRINCIPAL_KRW = Decimal("10000000")
 SNAPSHOT_MAX_AGE_DAYS = {
     "QQQM": 190,
@@ -228,19 +228,19 @@ ETF_PROFILES = {
         expense_ratio_pct="0.03",
         holdings_count=505,
         inception_date=date(2010, 9, 7),
-        facts_as_of=date(2026, 6, 30),
-        holdings_as_of=date(2026, 5, 31),
+        facts_as_of=date(2026, 8, 31),
+        holdings_as_of=date(2026, 7, 31),
         top_holdings=[
-            _holding("NVDA", "NVIDIA", "7.89"),
-            _holding("AAPL", "Apple", "7.05"),
-            _holding("MSFT", "Microsoft", "5.14"),
-            _holding("AMZN", "Amazon", "4.07"),
-            _holding("GOOGL", "Alphabet A", "3.41"),
-            _holding("AVGO", "Broadcom", "3.26"),
-            _holding("GOOG", "Alphabet C", "2.71"),
-            _holding("META", "Meta Platforms A", "2.13"),
-            _holding("TSLA", "Tesla", "1.89"),
-            _holding("MU", "Micron Technology", "1.68"),
+            _holding("NVDA", "NVIDIA", "7.55"),
+            _holding("AAPL", "Apple", "7.04"),
+            _holding("MSFT", "Microsoft", "5.36"),
+            _holding("AMZN", "Amazon", "4.13"),
+            _holding("GOOGL", "Alphabet A", "3.24"),
+            _holding("AVGO", "Broadcom", "2.86"),
+            _holding("GOOG", "Alphabet C", "2.62"),
+            _holding("META", "Meta Platforms A", "1.90"),
+            _holding("JPM", "JPMorgan Chase", "1.46"),
+            _holding("BRK/B", "Berkshire Hathaway B", "1.46"),
         ],
         source_url=VOO_URL,
         holdings_source_url=VOO_URL,
