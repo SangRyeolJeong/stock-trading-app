@@ -48,6 +48,24 @@ git log --oneline -5
 
 ## 마지막 검증 결과
 
+2026-09-06 브로커 주문 Transactional Outbox 기반 검증:
+
+```text
+backend pytest: 175 passed, 8 PostgreSQL tests skipped
+backend Ruff (app tests): All checks passed
+frontend Vitest: 20 files, 61 passed
+frontend build: passed
+frontend ESLint: passed
+git diff check: passed
+```
+
+`broker_orders`와 `broker_outbox_events`를 같은 트랜잭션에 저장하고,
+`BrokerOutboxWorker`가 `FOR UPDATE SKIP LOCKED`로 전송 이벤트를 점유한다. client
+order ID 멱등성, 증권사 접수 후 응답 유실 대사, 제한 재시도 후 명시적 대사,
+best-effort 취소를 Fake gateway로 검증했다. 실제 KIS 주문 gateway·공개 API·운영
+worker 실행기는 아직 연결하지 않았다. PostgreSQL 중복 worker 테스트는 CI에서
+검증한다.
+
 2026-09-06 PostgreSQL 트랜잭션 재시도와 VOO 자료 갱신 검증:
 
 ```text

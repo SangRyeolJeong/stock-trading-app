@@ -399,4 +399,4 @@ feat: add transactional outbox for broker orders
 - [x] 4단계: 원장 불변식과 대사
 - [x] 5단계: 주문 상태 머신과 감사 이력
 - [x] 6단계: 교착 상태와 트랜잭션 재시도
-- [ ] 7단계: 실제 증권사 주문과 Transactional Outbox
+- [x] 7단계: 실제 증권사 주문과 Transactional Outbox 기반(Fake gateway, 실제 KIS 연결 전)

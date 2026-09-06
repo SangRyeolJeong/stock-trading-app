@@ -166,6 +166,13 @@ cd backend
 정상이면 종료 코드 0, 불일치면 1, DB 점검 자체가 실패하면 2를 반환합니다. 기존
 원장 행은 수정하지 않으며 문제 코드와 계좌·주문·통화·종목 범위만 출력합니다.
 
+실전 주문 연동 전 안전 기반으로 `broker_orders`와 `broker_outbox_events`,
+`BrokerOutboxWorker`를 구현했습니다. 로컬 주문과 전송 의도는 한 트랜잭션에
+저장되고 worker는 PostgreSQL `FOR UPDATE SKIP LOCKED`로 이벤트를 점유합니다.
+응답 유실은 client order ID 조회로 대사하며 취소 실패는 성공으로 처리하지
+않습니다. 실제 KIS 주문 gateway, 공개 실전주문 API와 운영 worker 실행기는 아직
+연결하지 않았습니다.
+
 ## 사용자 설정 API
 
 - `GET /api/v1/me/preferences`

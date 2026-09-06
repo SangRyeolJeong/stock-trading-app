@@ -29,12 +29,14 @@ async def clean_migrated_postgres_schema() -> AsyncIterator[None]:
 
     async with engine.begin() as connection:
         revision = await connection.scalar(text("SELECT version_num FROM alembic_version"))
-        if revision != "20260901_0005":
+        if revision != "20260906_0006":
             pytest.fail(f"Alembic head가 필요합니다. 현재 revision: {revision}")
         await connection.execute(
             text(
                 """
                 TRUNCATE TABLE
+                    broker_outbox_events,
+                    broker_orders,
                     user_preferences,
                     portfolio_snapshots,
                     positions,

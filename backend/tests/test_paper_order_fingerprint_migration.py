@@ -80,6 +80,12 @@ def test_migration_backfills_existing_order_fingerprint(
                 """
             ).fetchall()
             columns = connection.execute("PRAGMA table_info('paper_orders')").fetchall()
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
             with pytest.raises(sqlite3.IntegrityError):
                 connection.execute("UPDATE paper_orders SET status = 'unknown'")
@@ -87,6 +93,7 @@ def test_migration_backfills_existing_order_fingerprint(
         assert fingerprint == (expected,)
         assert events == [(1, None, "accepted", "migration_backfill")]
         assert next(column for column in columns if column[1] == "request_fingerprint")[3] == 1
-        assert revision == ("20260901_0005",)
+        assert {"broker_orders", "broker_outbox_events"} <= tables
+        assert revision == ("20260906_0006",)
     finally:
         get_settings.cache_clear()

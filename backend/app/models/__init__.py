@@ -11,6 +11,8 @@ from app.models.paper import (
 from app.models.preferences import UserPreferences
 
 __all__ = [
+    "BrokerOrder",
+    "BrokerOutboxEvent",
     "CashLedgerEntry",
     "PaperAccount",
     "PaperExecution",
@@ -21,3 +23,4 @@ __all__ = [
     "Security",
     "UserPreferences",
 ]
+from app.models.broker import BrokerOrder, BrokerOutboxEvent
