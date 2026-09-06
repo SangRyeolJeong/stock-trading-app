@@ -56,13 +56,15 @@ backend Ruff (app tests): All checks passed
 frontend Vitest: 20 files, 61 passed
 frontend build: passed
 frontend ESLint: passed
+GitHub Actions (PostgreSQL 포함): passed
 git diff check: passed
 ```
 
 모의주문 생성·대기 주문 체결·취소는 PostgreSQL `40P01` 교착 상태와 `40001`
 직렬화 실패만 전체 트랜잭션 단위로 제한 재시도한다. 기본 3회 상한과 full jitter,
 사유별 구조화 로그·프로세스 로컬 카운터를 추가했다. 실제 PostgreSQL 교착 테스트는
-CI에 추가했지만 로컬에는 Docker/PostgreSQL 실행 파일이 없어 실행하지 못했다.
+로컬에 Docker/PostgreSQL 실행 파일이 없어 실행하지 못했지만 GitHub Actions에서
+통과했다.
 시간 경과로 실패한 ETF 신선도 검사를 복구하기 위해 Vanguard 공식 페이지와 API의
 2026-08-31 사실·2026-07-31 보유종목 자료로 VOO 스냅샷도 갱신했다.
 
