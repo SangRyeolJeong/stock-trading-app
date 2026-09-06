@@ -42,6 +42,7 @@ from app.services.paper_order_state import (
     record_order_creation,
     transition_order,
 )
+from app.services.transaction_retry import retryable_transaction
 
 MONEY_QUANTUM = Decimal("0.00000001")
 ZERO = Decimal("0")
@@ -578,6 +579,7 @@ class PaperTradingService:
         await session.flush()
         return order
 
+    @retryable_transaction("paper_order_create")
     async def execute_immediately(
         self,
         session: AsyncSession,
@@ -657,6 +659,7 @@ class PaperTradingService:
             ).all()
             return list(rows)
 
+    @retryable_transaction("paper_order_fill")
     async def try_fill_pending_order(
         self,
         session: AsyncSession,
@@ -693,6 +696,7 @@ class PaperTradingService:
                 await session.flush()
             return True
 
+    @retryable_transaction("paper_order_cancel")
     async def cancel_order(
         self,
         session: AsyncSession,

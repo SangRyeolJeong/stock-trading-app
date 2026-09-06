@@ -1,9 +1,11 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.exc import OperationalError
 
 from app.core.auth import DEMO_USER_ID
 from app.db.session import async_session_factory
@@ -23,6 +25,10 @@ from app.services.paper_trading import paper_trading_service
 
 class InjectedSettlementFailure(RuntimeError):
     pass
+
+
+class RetryablePostgreSQLError(RuntimeError):
+    sqlstate = "40P01"
 
 
 def market_order() -> PaperOrderRequest:
@@ -211,3 +217,34 @@ async def test_expected_resource_failure_rejects_pending_order_and_commits_busin
         assert await session.scalar(select(func.count()).select_from(Position)) == 0
         assert await session.scalar(select(func.count()).select_from(PortfolioSnapshot)) == 0
         assert await session.scalar(select(func.count()).select_from(CashLedgerEntry)) == 3
+
+
+@pytest.mark.asyncio
+async def test_order_write_retries_a_retryable_transaction_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = paper_trading_service._lock_user_account
+    attempts = 0
+
+    async def fail_once(session: Any, user_id: str) -> Any:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OperationalError("lock account", {}, RetryablePostgreSQLError())
+        return await original(session, user_id)
+
+    monkeypatch.setattr(paper_trading_service, "_lock_user_account", fail_once)
+    monkeypatch.setattr("app.services.transaction_retry.asyncio.sleep", AsyncMock())
+
+    async with async_session_factory() as session:
+        result = await paper_trading_service.execute_immediately(
+            session,
+            DEMO_USER_ID,
+            market_order(),
+            quote(),
+        )
+
+    assert result.status == "filled"
+    assert attempts == 2
+    async with async_session_factory() as session:
+        assert await session.scalar(select(func.count()).select_from(PaperOrder)) == 1

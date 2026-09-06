@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     database_pool_recycle_seconds: int = Field(default=1800, ge=30, le=86400)
     database_connect_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
     database_command_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    transaction_retry_max_attempts: int = Field(default=3, ge=1, le=10)
+    transaction_retry_base_delay_seconds: float = Field(default=0.01, ge=0, le=5)
+    transaction_retry_max_delay_seconds: float = Field(default=0.25, ge=0, le=30)
     auth_mode: Literal["demo", "supabase"] = "demo"
     supabase_url: str | None = None
     supabase_publishable_key: str | None = None
@@ -68,6 +71,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_auth_settings(self) -> "Settings":
+        if self.transaction_retry_max_delay_seconds < self.transaction_retry_base_delay_seconds:
+            raise ValueError(
+                "TRANSACTION_RETRY_MAX_DELAY_SECONDS는 BASE_DELAY_SECONDS 이상이어야 합니다."
+            )
         if self.app_env == "production" and self.auth_mode != "supabase":
             raise ValueError("운영 환경에서는 AUTH_MODE=supabase가 필요합니다.")
         if self.app_env == "production" and not self.database_url.startswith(

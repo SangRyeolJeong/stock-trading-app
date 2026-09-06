@@ -28,6 +28,11 @@ from app.services.paper_trading import (
     PaperTradingService,
     paper_trading_service,
 )
+from app.services.transaction_retry import (
+    TransactionRetryPolicy,
+    run_with_transaction_retry,
+    transaction_retry_metrics,
+)
 
 LockAccount = Callable[[AsyncSession, str], Awaitable[PaperAccount]]
 
@@ -299,3 +304,86 @@ async def test_concurrent_first_account_creation_has_one_initial_deposit_per_cur
         ).all()
     assert entries == [("KRW", Decimal("10000000.00000000")), ("USD", Decimal("10000.00000000"))]
     await assert_ledger_invariants()
+
+
+@pytest.mark.asyncio
+async def test_real_postgresql_deadlock_retries_the_whole_transaction() -> None:
+    account_ids = ("deadlock-account-a", "deadlock-account-b")
+    async with async_session_factory() as session, session.begin():
+        session.add_all(
+            [
+                PaperAccount(
+                    id=account_id,
+                    user_id=f"{account_id}-user",
+                    name=account_id,
+                    base_currency="USD",
+                    status="active",
+                )
+                for account_id in account_ids
+            ]
+        )
+
+    both_first_rows_locked = asyncio.Event()
+    first_lock_count = 0
+    attempts = [0, 0]
+
+    async def lock_in_order(
+        session: AsyncSession,
+        worker_index: int,
+        first_account_id: str,
+        second_account_id: str,
+    ) -> None:
+        nonlocal first_lock_count
+        attempts[worker_index] += 1
+        async with session.begin():
+            await session.scalar(
+                select(PaperAccount)
+                .where(PaperAccount.id == first_account_id)
+                .with_for_update()
+            )
+            if attempts[worker_index] == 1:
+                first_lock_count += 1
+                if first_lock_count == 2:
+                    both_first_rows_locked.set()
+                await asyncio.wait_for(both_first_rows_locked.wait(), timeout=5)
+            await session.scalar(
+                select(PaperAccount)
+                .where(PaperAccount.id == second_account_id)
+                .with_for_update()
+            )
+
+    policy = TransactionRetryPolicy(
+        max_attempts=3,
+        base_delay_seconds=0.001,
+        max_delay_seconds=0.01,
+    )
+    transaction_retry_metrics.reset()
+    async with async_session_factory() as first_session, async_session_factory() as second_session:
+        await asyncio.wait_for(
+            asyncio.gather(
+                run_with_transaction_retry(
+                    "deadlock_worker_a",
+                    lambda: lock_in_order(
+                        first_session,
+                        0,
+                        account_ids[0],
+                        account_ids[1],
+                    ),
+                    policy=policy,
+                ),
+                run_with_transaction_retry(
+                    "deadlock_worker_b",
+                    lambda: lock_in_order(
+                        second_session,
+                        1,
+                        account_ids[1],
+                        account_ids[0],
+                    ),
+                    policy=policy,
+                ),
+            ),
+            timeout=10,
+        )
+
+    assert sorted(attempts) == [1, 2]
+    assert transaction_retry_metrics.snapshot().retries_total == {"deadlock_detected": 1}

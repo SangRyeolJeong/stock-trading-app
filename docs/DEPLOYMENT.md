@@ -31,6 +31,9 @@ DATABASE_POOL_TIMEOUT_SECONDS=10
 DATABASE_POOL_RECYCLE_SECONDS=1800
 DATABASE_CONNECT_TIMEOUT_SECONDS=10
 DATABASE_COMMAND_TIMEOUT_SECONDS=30
+TRANSACTION_RETRY_MAX_ATTEMPTS=3
+TRANSACTION_RETRY_BASE_DELAY_SECONDS=0.01
+TRANSACTION_RETRY_MAX_DELAY_SECONDS=0.25
 CORS_ORIGINS=https://<frontend-origin>
 MARKET_DATA_PROVIDER=mock
 ```
@@ -50,6 +53,12 @@ fragment 또는 사용자 정보가 없어야 한다. Supabase URL도 프로젝�
 `DATABASE_POOL_SIZE + DATABASE_MAX_OVERFLOW` 합계가 그보다 작게 설정되어야
 한다. 외부 transaction pooler를 사용할 때는 공급자의 prepared statement
 지원 방식도 함께 확인한다.
+
+모의주문 쓰기는 PostgreSQL `deadlock_detected`와 `serialization_failure`만 전체
+트랜잭션 단위로 최대 3회 재시도한다. 재시도 사이에는 최대 10ms에서 시작해
+250ms까지 증가하는 full jitter를 적용한다. 연결 단절과 비즈니스 오류는 자동
+재시도하지 않는다. 세 값은 `TRANSACTION_RETRY_*` 환경변수로 조정할 수 있지만,
+DB 부하가 이미 높은 상황에서 횟수를 크게 늘리면 장애를 증폭할 수 있다.
 
 ## 프론트엔드 build argument
 

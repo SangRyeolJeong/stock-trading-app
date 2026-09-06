@@ -75,6 +75,12 @@ PostgreSQL을 준비한 뒤 마이그레이션을 적용합니다.
 운영 환경은 실수로 SQLite가 사용되지 않도록 `postgresql+asyncpg://` URL만
 허용합니다.
 
+모의주문 생성·대기 주문 체결·취소 중 PostgreSQL이 `40P01` 교착 상태 또는
+`40001` 직렬화 실패를 반환하면 전체 트랜잭션을 기본 최대 3회 재실행합니다.
+`TRANSACTION_RETRY_MAX_ATTEMPTS`, `TRANSACTION_RETRY_BASE_DELAY_SECONDS`,
+`TRANSACTION_RETRY_MAX_DELAY_SECONDS`로 상한과 full-jitter 지연을 조정합니다.
+현금·수량 부족, 멱등성 충돌과 연결 단절은 자동 재시도 대상이 아닙니다.
+
 ```bash
 cd /home/user/code/stock-trading-app/backend
 .venv/bin/python -m alembic upgrade head

@@ -130,8 +130,20 @@ def test_kis_provider_requires_api_credentials() -> None:
         ("database_pool_recycle_seconds", 10),
         ("database_connect_timeout_seconds", 0),
         ("database_command_timeout_seconds", 301),
+        ("transaction_retry_max_attempts", 0),
+        ("transaction_retry_base_delay_seconds", -0.1),
+        ("transaction_retry_max_delay_seconds", 31),
     ],
 )
 def test_database_limits_reject_unsafe_values(setting_name: str, value: object) -> None:
     with pytest.raises(ValueError):
         Settings(_env_file=None, **{setting_name: value})
+
+
+def test_transaction_retry_max_delay_cannot_be_less_than_base_delay() -> None:
+    with pytest.raises(ValueError, match="TRANSACTION_RETRY_MAX_DELAY_SECONDS"):
+        Settings(
+            _env_file=None,
+            transaction_retry_base_delay_seconds=1,
+            transaction_retry_max_delay_seconds=0.5,
+        )
