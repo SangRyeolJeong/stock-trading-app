@@ -188,6 +188,21 @@ cd backend
 API 검증과 DB check constraint 양쪽에서 제한합니다. Alembic
 `20260729_0003`이 테이블을 생성합니다.
 
+## 계정 데이터 삭제 API
+
+- `DELETE /api/v1/me`
+
+본문에 `{"confirmation":"DELETE"}`를 전달하면 현재 인증 사용자의 설정과
+모의투자 계좌·주문·체결·상태 이력·현금 원장·포지션·스냅샷을 하나의
+트랜잭션에서 삭제합니다. 반복 요청은 성공하며 다른 사용자의 데이터에는 영향을
+주지 않습니다.
+
+미확정 브로커 주문이 있으면 외부 주문의 추적 근거를 잃지 않도록 `409 Conflict`로
+차단합니다. 브로커 주문이 모두 취소된 뒤에는 관련 outbox 기록도 함께 삭제합니다.
+이 API의 범위는 애플리케이션 DB이며 Supabase Auth 사용자 제거는 별도의 인증
+관리 절차에서 수행합니다. 자세한 정책은 `docs/adr/0008-account-deletion-boundary.md`에
+정리했습니다.
+
 ## 시장 데이터 API
 
 - `GET /api/v1/markets/quotes/{symbol}`
