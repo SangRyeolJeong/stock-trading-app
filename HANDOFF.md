@@ -48,6 +48,24 @@ git log --oneline -5
 
 ## 마지막 검증 결과
 
+2026-09-13 계정 데이터 삭제와 미국 ETF 자료 갱신 검증:
+
+```text
+backend pytest: 180 passed, 9 PostgreSQL tests skipped
+backend Ruff (app tests): All checks passed
+frontend Vitest: 20 files, 61 passed
+frontend build: passed
+frontend ESLint: passed
+GitHub Actions (PostgreSQL 포함): passed
+git diff check: passed
+```
+
+`DELETE /api/v1/me`는 명시적 확인값을 요구하고 현재 사용자의 설정과 모의투자
+데이터를 한 트랜잭션에서 삭제한다. 반복 삭제는 안전하며 다른 사용자 데이터는
+유지한다. 미확정 브로커 주문이 있으면 `409`로 차단하고, PostgreSQL에서 실제 외래
+키 삭제 순서와 원자성을 검증했다. QQQ·QQQM·SPY 공식 스냅샷도 2026-09-10
+holdings 기준으로 갱신했다. Supabase Auth 사용자 삭제는 별도 운영 경계다.
+
 2026-09-06 브로커 주문 Transactional Outbox 기반 검증:
 
 ```text
