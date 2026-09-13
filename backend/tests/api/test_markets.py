@@ -13,7 +13,7 @@ def test_etf_official_snapshots_are_not_stale() -> None:
 
 
 def test_etf_snapshot_freshness_uses_source_specific_cadence() -> None:
-    september_stale = stale_etf_symbols(as_of=date(2026, 9, 11))
+    september_stale = stale_etf_symbols(as_of=date(2026, 9, 25))
     october_stale = stale_etf_symbols(as_of=date(2026, 10, 13))
 
     assert "SPY" in september_stale
